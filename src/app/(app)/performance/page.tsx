@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from '@/components/ui/button';
 import { format, subDays, addDays } from "date-fns";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Calendar as CalendarIcon, TrendingUp, Package, CheckCircle, Clock, Percent, ArrowLeft, ArrowRight, PackageX } from 'lucide-react';
 import type { DailyPerformanceData } from '@/lib/mockData'; // Import the type
 import { generateDailyPerformanceEntry } from '@/lib/mockData'; // Import the generator
@@ -119,15 +119,15 @@ export default function PerformancePage() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={weeklyChartData}>
+              <LineChart data={weeklyChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="Terkirim" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Tidak Terkirim/Pending" fill="hsl(var(--chart-5))" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Line type="monotone" dataKey="Terkirim" stroke="hsl(var(--chart-1))" strokeWidth={2} activeDot={{ r: 6 }} />
+                <Line type="monotone" dataKey="Tidak Terkirim/Pending" stroke="hsl(var(--chart-5))" strokeWidth={2} activeDot={{ r: 6 }} />
+              </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
