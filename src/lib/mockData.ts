@@ -1,4 +1,7 @@
+
 import type { User, PackageItem, AttendanceEntry } from '@/types';
+import { format } from "date-fns";
+
 
 export const mockUser: User = {
   id: 'PISTEST2025',
@@ -14,9 +17,9 @@ export const mockUser: User = {
 };
 
 export const mockPackages: PackageItem[] = [
-  { resi: 'SPX00000001', status: 'Proses', isCod: true, timestamp: Date.now() - 100000 },
-  { resi: 'SPX00000002', status: 'Proses', isCod: false, timestamp: Date.now() - 90000 },
-];
+  // { resi: 'SPX00000001', status: 'Proses', isCod: true, timestamp: Date.now() - 100000 },
+  // { resi: 'SPX00000002', status: 'Proses', isCod: false, timestamp: Date.now() - 90000 },
+]; // Start with empty packages for new dashboard logic
 
 export const mockAttendance: AttendanceEntry[] = [
   { id: '1', date: '2024-07-28', checkInTime: '08:00', checkOutTime: '17:00', status: 'On Time' },
@@ -31,3 +34,31 @@ export const motivationalQuotes: string[] = [
   "Jangan biarkan rintangan menghentikanmu. Terus bergerak maju!",
   "Setiap hari adalah kesempatan baru untuk menjadi versi terbaik dirimu."
 ];
+
+
+// For performance page
+export interface DailyPerformanceData {
+  date: string;
+  totalPackages: number;
+  deliveredPackages: number;
+  undeliveredOrPendingPackages: number; // Added this
+  avgDeliveryTime: number; // in minutes
+  attendance: 'Present' | 'Late' | 'Absent'; // More specific
+}
+
+export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData => {
+  const daySeed = date.getDate() + date.getMonth() * 30; // Make seed vary more
+  const total = 15 + (daySeed % 10) - 2; // 13 to 23
+  const delivered = Math.floor(total * (0.7 + (daySeed % 3) * 0.1)); // 70-90% success rate
+  const undeliveredOrPending = total - delivered;
+  
+  return {
+    date: format(date, "yyyy-MM-dd"),
+    totalPackages: total,
+    deliveredPackages: delivered,
+    undeliveredOrPendingPackages: undeliveredOrPending,
+    avgDeliveryTime: 100 + (daySeed % 40) - 20, // 80 to 120 minutes
+    attendance: (daySeed % 10) < 7 ? 'Present' : (daySeed % 10) < 9 ? 'Late' : 'Absent',
+  };
+};
+
