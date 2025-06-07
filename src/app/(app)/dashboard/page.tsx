@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import type { PackageItem, PackageStatus } from '@/types';
 import { mockUser, mockPackages, motivationalQuotes } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
@@ -34,12 +35,56 @@ export default function DashboardPage() {
   const [resiInput, setResiInput] = useState('');
   const [isCodInput, setIsCodInput] = useState(false);
   const [motivationalQuote, setMotivationalQuote] = useState('');
+  const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const { toast } = useToast();
 
   useEffect(() => {
     setMotivationalQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
   }, []);
+
+  useEffect(() => {
+    if (isScanDialogOpen) {
+      const getCameraPermission = async () => {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('Camera API not supported.');
+          setHasCameraPermission(false);
+          toast({
+            variant: 'destructive',
+            title: 'Kamera Tidak Didukung',
+            description: 'Browser Anda tidak mendukung akses kamera.',
+          });
+          return;
+        }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          setHasCameraPermission(true);
+          if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+          }
+        } catch (error) {
+          console.error('Error accessing camera:', error);
+          setHasCameraPermission(false);
+          toast({
+            variant: 'destructive',
+            title: 'Akses Kamera Ditolak',
+            description: 'Mohon izinkan akses kamera di pengaturan browser Anda. Jika sudah, coba muat ulang halaman.',
+          });
+        }
+      };
+      getCameraPermission();
+
+      return () => {
+        if (videoRef.current && videoRef.current.srcObject) {
+          const stream = videoRef.current.srcObject as MediaStream;
+          stream.getTracks().forEach(track => track.stop());
+          videoRef.current.srcObject = null;
+        }
+      };
+    }
+  }, [isScanDialogOpen, toast]);
 
   const handleAddPackage = () => {
     if (!resiInput.trim()) {
@@ -82,10 +127,13 @@ export default function DashboardPage() {
   const dailyPerformanceData = useMemo(() => {
     const delivered = packages.filter(p => p.status === 'Terkirim').length;
     const pending = packages.filter(p => p.status === 'Tidak Terkirim' || p.status === 'Pending').length;
-    const total = delivered + pending;
+    const total = delivered + pending; // Only count packages that were attempted or processed for delivery
+    const relevantPackages = packages.filter(p => p.status === 'Terkirim' || p.status === 'Tidak Terkirim' || p.status === 'Pending');
+    const totalRelevant = relevantPackages.length;
+
     return [
-      { name: 'Terkirim', value: delivered, percentage: total > 0 ? (delivered / total) * 100 : 0 },
-      { name: 'Pending/Gagal', value: pending, percentage: total > 0 ? (pending / total) * 100 : 0 },
+      { name: 'Terkirim', value: delivered, percentage: totalRelevant > 0 ? (delivered / totalRelevant) * 100 : 0 },
+      { name: 'Pending/Gagal', value: pending, percentage: totalRelevant > 0 ? (pending / totalRelevant) * 100 : 0 },
     ];
   }, [packages]);
 
@@ -111,39 +159,76 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-lg"><Truck className="h-5 w-5 text-primary"/>Data Input Paket Harian</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-lg"><Edit3 className="h-5 w-5 text-primary"/>Input Data Paket Harian</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex justify-between"><span>Total Paket Dibawa:</span> <span className="font-semibold">{totalPackagesCarried}</span></div>
-            <div className="flex justify-between"><span>Total Paket COD:</span> <span className="font-semibold">{codPackages}</span></div>
-            <div className="flex justify-between"><span>Total Paket Non-COD:</span> <span className="font-semibold">{nonCodPackages}</span></div>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="totalPackagesCarried">Total Paket Dibawa</Label>
+              <Input id="totalPackagesCarried" type="number" value={totalPackagesCarried} onChange={(e) => setTotalPackagesCarried(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah paket" />
+            </div>
+            <div>
+              <Label htmlFor="codPackages">Total Paket COD</Label>
+              <Input id="codPackages" type="number" value={codPackages} onChange={(e) => setCodPackages(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah COD" />
+            </div>
+            <div>
+              <Label htmlFor="nonCodPackages">Total Paket Non-COD</Label>
+              <Input id="nonCodPackages" type="number" value={nonCodPackages} onChange={(e) => setNonCodPackages(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah Non-COD" />
+            </div>
           </CardContent>
         </Card>
         
-        <Dialog>
+        <Dialog open={isScanDialogOpen} onOpenChange={setIsScanDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="md:col-span-1 h-full text-lg flex flex-col items-center justify-center p-4 hover:bg-primary/10">
+            <Button variant="outline" className="md:col-span-1 h-full text-lg flex flex-col items-center justify-center p-4 hover:bg-primary/10" onClick={() => setIsScanDialogOpen(true)}>
               <ScanLine className="h-12 w-12 text-primary mb-2" />
-              Mulai Scan Barcode
+              Input/Scan Resi
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Input Resi Paket</DialogTitle>
+              <DialogTitle>Input Resi Paket Manual & Scan</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Scan Barcode (Pratinjau Kamera)</Label>
+                <div className="p-1 border rounded-md bg-muted">
+                  <video ref={videoRef} className="w-full aspect-[4/3] rounded-md" autoPlay muted playsInline />
+                </div>
+                {hasCameraPermission === false && (
+                  <Alert variant="destructive">
+                    <Camera className="h-4 w-4" />
+                    <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
+                    <AlertDescription>
+                      Aplikasi memerlukan izin kamera. Mohon aktifkan di pengaturan browser Anda dan muat ulang halaman jika perlu.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                 {hasCameraPermission === null && (
+                    <Alert variant="default">
+                        <Camera className="h-4 w-4" />
+                        <AlertTitle>Menunggu Izin Kamera...</AlertTitle>
+                        <AlertDescription>
+                            Izinkan aplikasi untuk menggunakan kamera Anda.
+                        </AlertDescription>
+                    </Alert>
+                )}
+                <p className="text-xs text-muted-foreground text-center">Arahkan kamera ke barcode. Fitur scan otomatis segera hadir.</p>
+              </div>
+
+              <Separator />
+
               <div>
-                <Label htmlFor="resi">Nomor Resi</Label>
-                <Input id="resi" value={resiInput} onChange={(e) => setResiInput(e.target.value)} placeholder="Ketik nomor resi manual" />
+                <Label htmlFor="resi-manual">Nomor Resi (Manual)</Label>
+                <Input id="resi-manual" value={resiInput} onChange={(e) => setResiInput(e.target.value.toUpperCase())} placeholder="Ketik nomor resi" />
               </div>
               <div className="flex items-center space-x-2">
-                <Input type="checkbox" id="isCod" checked={isCodInput} onChange={(e) => setIsCodInput(e.target.checked)} className="h-4 w-4"/>
-                <Label htmlFor="isCod" className="font-normal">Paket COD</Label>
+                <Input type="checkbox" id="isCod-manual" checked={isCodInput} onChange={(e) => setIsCodInput(e.target.checked)} className="h-4 w-4"/>
+                <Label htmlFor="isCod-manual" className="font-normal">Paket COD</Label>
               </div>
             </div>
             <DialogFooter>
-              <DialogClose asChild><Button variant="outline">Batal</Button></DialogClose>
-              <Button onClick={handleAddPackage}>Simpan Paket</Button>
+              <Button variant="outline" onClick={() => setIsScanDialogOpen(false)}>Batal</Button>
+              <Button onClick={() => { handleAddPackage(); setIsScanDialogOpen(false); }}>Simpan Paket</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -153,7 +238,7 @@ export default function DashboardPage() {
             <CardTitle className="flex items-center gap-2 text-lg"><PackageCheck className="h-5 w-5 text-accent"/>Performa Harian</CardTitle>
           </CardHeader>
           <CardContent>
-            {dailyPerformanceData.find(d => d.value > 0) ? (
+            {dailyPerformanceData.find(d => d.value > 0) || dailyPerformanceData.some(d => d.name === 'Pending/Gagal' && d.value > 0) ? (
               <ResponsiveContainer width="100%" height={150}>
                 <PieChart>
                   <Pie data={dailyPerformanceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} labelLine={false} label={({ name, percentage }) => `${name}: ${percentage.toFixed(0)}%`}>
@@ -162,7 +247,7 @@ export default function DashboardPage() {
                     ))}
                   </Pie>
                   <Tooltip formatter={(value, name, props) => [`${value} (${props.payload.percentage.toFixed(1)}%)`, name]}/>
-                  <Legend />
+                  {/* <Legend /> */}
                 </PieChart>
               </ResponsiveContainer>
             ) : (
