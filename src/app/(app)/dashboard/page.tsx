@@ -61,7 +61,7 @@ export default function DashboardPage() {
 
     const stopScanAndCamera = () => {
       console.log('Attempting to stop scan and camera...');
-      setScanHintMessage(null); // Clear hint message when stopping
+      setScanHintMessage(null); 
       if (currentControls) {
         console.log('Stopping active scanner controls.');
         try {
@@ -133,7 +133,7 @@ export default function DashboardPage() {
       console.log('zxing.BarcodeFormat available:', !!zxing.BarcodeFormat);
       console.log('zxing.DecodeHintType available:', !!zxing.DecodeHintType);
       
-      stopScanAndCamera(); // Ensure clean state
+      stopScanAndCamera(); 
 
       try {
         console.log('Requesting camera permission...');
@@ -233,7 +233,7 @@ export default function DashboardPage() {
               if (result) {
                   console.log('Barcode scanned:', result.getText());
                   setResiInput(result.getText().toUpperCase());
-                  setScanHintMessage(null); // Clear hint on successful scan
+                  setScanHintMessage(null); 
                   toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
               } else if (error) {
                   if (zxing && error instanceof zxing.NotFoundException) {
@@ -250,7 +250,7 @@ export default function DashboardPage() {
       );
       console.log('Continuous decode started successfully. Controls:', currentControls);
 
-    }; // End of initializeAndStartScanner
+    }; 
 
     if (isScanDialogOpen) {
       initializeAndStartScanner();
@@ -262,7 +262,7 @@ export default function DashboardPage() {
       console.log('useEffect cleanup: isScanDialogOpen changed or component unmounted.');
       stopScanAndCamera();
     };
-  }, [isScanDialogOpen]); // End of useEffect
+  }, [isScanDialogOpen]); 
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
@@ -803,5 +803,4 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
-
     
