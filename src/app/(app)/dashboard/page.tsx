@@ -29,9 +29,15 @@ import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import Link from 'next/link';
 
-const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 const LOCAL_STORAGE_DAILY_REPORTS_KEY = 'spxCourierDailySummaries';
 const LOCAL_STORAGE_LAST_CHECK_IN_KEY = 'spxUserLastCheckInDate';
+
+const CHART_COLORS_PIE = {
+  delivered: 'hsl(var(--chart-2))', // Using chart-2 (Greenish) for delivered
+  failedOrReturned: 'hsl(var(--chart-5))', // Using chart-5 (Red) for failed/returned
+  inProgressOrProses: 'hsl(var(--chart-3))', // Using chart-3 (Orange) for in progress
+  noData: 'hsl(var(--muted))',
+};
 
 
 export default function DashboardPage() {
@@ -434,22 +440,54 @@ export default function DashboardPage() {
   }, [isDailyInputSubmitted, packages, totalPackagesCarried]);
 
   const dailyPerformanceData = useMemo(() => {
-    const delivered = packages.filter(p => p.status === 'Terkirim').length;
-    const failedOrPending = packages.filter(p => p.status === 'Tidak Terkirim' || p.status === 'Pending' || p.status === 'Dikembalikan').length;
-    const inProgress = packages.filter(p => p.status === 'Dalam Pengantaran' || p.status === 'Proses').length;
+    const deliveredCount = packages.filter(p => p.status === 'Terkirim').length;
+    const failedOrReturnedCount = packages.filter(p => p.status === 'Tidak Terkirim' || p.status === 'Pending' || p.status === 'Dikembalikan').length;
+    const inProgressOrProsesCount = packages.filter(p => p.status === 'Dalam Pengantaran' || p.status === 'Proses').length;
 
-    if (isDailyInputSubmitted && totalPackagesCarried > 0) {
-        const remaining = totalPackagesCarried - delivered - failedOrPending - inProgress;
-        return [
-          { name: 'Terkirim', value: delivered, percentage: (delivered / totalPackagesCarried) * 100 },
-          { name: 'Gagal/Pending/Kembali', value: failedOrPending, percentage: (failedOrPending / totalPackagesCarried) * 100 },
-          { name: 'Proses/Antar', value: inProgress, percentage: (inProgress / totalPackagesCarried) * 100 },
-          { name: 'Belum Scan', value: Math.max(0, remaining), percentage: (Math.max(0,remaining) / totalPackagesCarried) * 100 }
-        ].filter(item => item.value > 0 || (item.name === 'Belum Scan' && (delivered > 0 || failedOrPending > 0 || inProgress > 0 || remaining > 0)));
+    const totalScannedPackages = packages.length;
+
+    if (!isDailyInputSubmitted || totalPackagesCarried === 0) {
+      return [{ name: 'Belum ada data', value: 1, percentage: 100, fill: CHART_COLORS_PIE.noData }];
     }
-    return [{ name: 'Belum ada data', value: 1, percentage: 100}];
+
+    if (totalScannedPackages === 0) {
+      return [{ name: 'Belum ada paket di-scan', value: 1, percentage: 100, fill: CHART_COLORS_PIE.noData }];
+    }
+    
+    const data = [];
+    if (deliveredCount > 0) {
+      data.push({
+        name: 'Terkirim',
+        value: deliveredCount,
+        percentage: (deliveredCount / totalScannedPackages) * 100,
+        fill: CHART_COLORS_PIE.delivered,
+      });
+    }
+    if (failedOrReturnedCount > 0) {
+      data.push({
+        name: 'Gagal/Kembali', // Updated name for chart legend
+        value: failedOrReturnedCount,
+        percentage: (failedOrReturnedCount / totalScannedPackages) * 100,
+        fill: CHART_COLORS_PIE.failedOrReturned,
+      });
+    }
+    if (inProgressOrProsesCount > 0) {
+      data.push({
+        name: 'Proses/Antar',
+        value: inProgressOrProsesCount,
+        percentage: (inProgressOrProsesCount / totalScannedPackages) * 100,
+        fill: CHART_COLORS_PIE.inProgressOrProses,
+      });
+    }
+    
+    if (data.length === 0 && totalScannedPackages > 0) {
+        return [{ name: 'Status tidak jelas', value: totalScannedPackages, percentage: 100, fill: CHART_COLORS_PIE.noData }];
+    }
+    
+    return data.length > 0 ? data : [{ name: 'Tidak ada paket diproses', value: 1, percentage: 100, fill: CHART_COLORS_PIE.noData }];
 
   }, [packages, isDailyInputSubmitted, totalPackagesCarried]);
+
 
   if (!isDashboardMounted) {
     return <div className="flex h-screen items-center justify-center">Loading dashboard...</div>;
@@ -594,20 +632,36 @@ export default function DashboardPage() {
              <CardDescription>Distribusi status paket yang diinput.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isDailyInputSubmitted && totalPackagesCarried > 0 ? (
+            {(isDailyInputSubmitted && totalPackagesCarried > 0 && dailyPerformanceData.length > 0) ? (
               <ResponsiveContainer width="100%" height={150}>
                 <PieChart>
-                  <Pie data={dailyPerformanceData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={60} labelLine={false} label={({ name, percentage }) => `${name}: ${percentage.toFixed(0)}%`}>
+                  <Pie 
+                    data={dailyPerformanceData} 
+                    dataKey="value" 
+                    nameKey="name" 
+                    cx="50%" 
+                    cy="50%" 
+                    outerRadius={60} 
+                    labelLine={false} 
+                    label={({ name, percentage }) => `${name}: ${percentage ? percentage.toFixed(0) : '0'}%`}
+                  >
                     {dailyPerformanceData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value, name, props) => [`${value} (${props.payload.percentage.toFixed(1)}%)`, name]}/>
+                  <Tooltip formatter={(value, name, props) => {
+                      const percentage = props.payload.percentage;
+                      return [`${value} (${percentage ? percentage.toFixed(1) : '0.0'}%)`, name];
+                  }}/>
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <p className="text-center text-muted-foreground">Input data harian untuk melihat performa.</p>
+              <p className="text-center text-muted-foreground h-[150px] flex items-center justify-center">
+                {isDailyInputSubmitted && totalPackagesCarried > 0 && dailyPerformanceData.length === 0 
+                  ? 'Tidak ada paket yang diproses.' 
+                  : 'Input data harian untuk melihat performa.'}
+              </p>
             )}
           </CardContent>
         </Card>
@@ -648,8 +702,8 @@ export default function DashboardPage() {
           <PackageTable
             packages={packagesByStatus('Dalam Pengantaran')}
             actions={[
-              (p) => <PackageActionButton key={`photo-${p.resi}`} pkg={p} actionType="photo" updatePackageStatus={updatePackageStatus} disabled={!deliveryActionsActive} />,
-              { label: 'Gagal Kirim', icon: PackageX, onClick: (p) => updatePackageStatus(p.resi, 'Tidak Terkirim'), variant: 'outline', disabled: !deliveryActionsActive }
+              (p) => <PackageActionButton key={`photo-${p.resi}`} pkg={p} actionType="photo" updatePackageStatus={updatePackageStatus} disabled={!deliveryActionsActive || !hasCheckedInToday} />,
+              { label: 'Gagal Kirim', icon: PackageX, onClick: (p) => updatePackageStatus(p.resi, 'Tidak Terkirim'), variant: 'outline', disabled: !deliveryActionsActive || !hasCheckedInToday }
             ]}
             emptyMessage="Tidak ada paket yang sedang diantar."
             showRecipientInput
@@ -684,7 +738,7 @@ export default function DashboardPage() {
           <PackageTable
             packages={[...packagesByStatus('Tidak Terkirim'), ...packagesByStatus('Pending')]}
             actions={[
-              (p) => <PackageActionButton key={`return-${p.resi}`} pkg={p} actionType="returnProof" updatePackageStatus={updatePackageStatus} />,
+              (p) => <PackageActionButton key={`return-${p.resi}`} pkg={p} actionType="returnProof" updatePackageStatus={updatePackageStatus} disabled={!hasCheckedInToday}/>,
             ]}
             emptyMessage="Tidak ada paket pending atau tidak terkirim."
              showPhoto
@@ -890,4 +944,5 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     
 
     
+
 
