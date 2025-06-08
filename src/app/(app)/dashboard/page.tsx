@@ -45,7 +45,8 @@ export default function DashboardPage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const codeReaderRef = useRef(new BrowserMultiFormatReader());
+  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+
 
   const { toast } = useToast();
   const router = useRouter();
@@ -55,68 +56,55 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const codeReader = codeReaderRef.current;
-
     const startCameraAndScan = async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Camera API not supported.');
-        setHasCameraPermission(false);
-        toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
+      if (!streamRef.current) {
+        console.error("Stream not available for scanning.");
+        setHasCameraPermission(false); // Reflect that scanning cannot start
         return;
       }
 
-      let stream: MediaStream | null = null;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
-      } catch (err) {
-        console.warn("Could not get rear camera (exact), trying ideal:", err);
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        } catch (err2) {
-          console.warn("Could not get rear camera (ideal), trying any camera:", err2);
-          try {
-            stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          } catch (finalError) {
-            console.error('Error accessing any camera:', finalError);
-            setHasCameraPermission(false);
-            toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera. Coba muat ulang halaman jika masalah berlanjut.'});
-            return;
-          }
-        }
-      }
-
-      setHasCameraPermission(true);
-      streamRef.current = stream;
       if (videoRef.current) {
-        videoRef.current.srcObject = stream;
+        videoRef.current.srcObject = streamRef.current;
         try {
-            // Wait for video to be ready to play
             await videoRef.current.play();
             console.log('Starting barcode scan...');
-            codeReader.decodeFromContinuously(undefined, videoRef.current, (result, err) => {
-              if (result) {
-                console.log('Barcode scanned:', result.getText());
-                setResiInput(result.getText().toUpperCase());
-                toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
-                // Consider stopping scan here or providing a button to rescan if needed
-                // codeReader.reset(); // Example: stop after first scan
-              }
-              if (err && !(err instanceof NotFoundException) && !(err instanceof ChecksumException) && !(err instanceof FormatException)) {
-                console.error('Barcode scan error:', err);
-                // Avoid too many toasts for minor scan issues
-                // toast({ variant: "destructive", title: "Scan Error", description: "Gagal memindai barcode." });
-              }
-            });
+            
+            codeReaderRef.current = new BrowserMultiFormatReader(); // Initialize fresh reader
+            
+            if (codeReaderRef.current) { // Check if instance was created
+              codeReaderRef.current.decodeFromContinuously(undefined, videoRef.current, (result, err) => {
+                if (!codeReaderRef.current) { // Check if reader was reset/nulled during async operation
+                  return;
+                }
+                if (result) {
+                  console.log('Barcode scanned:', result.getText());
+                  setResiInput(result.getText().toUpperCase());
+                  toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
+                  // Optionally, stop scanning after a successful scan if dialog remains open
+                  // if (codeReaderRef.current) {
+                  //    codeReaderRef.current.reset();
+                  //    codeReaderRef.current = null; // Ensure it's marked as reset
+                  // }
+                  // setIsScanDialogOpen(false); // Or close dialog if preferred
+                }
+                if (err && !(err instanceof NotFoundException) && !(err instanceof ChecksumException) && !(err instanceof FormatException)) {
+                  console.error('Barcode scan error:', err);
+                }
+              });
+            }
           } catch (playError) {
             console.error("Error playing video for scanning:", playError);
-            setHasCameraPermission(false); // Indicate issue
+            setHasCameraPermission(false);
             toast({variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.'});
           }
       }
     };
 
     const stopCameraAndScan = () => {
-      codeReader.reset(); // Stop barcode reader
+      if (codeReaderRef.current) {
+        codeReaderRef.current.reset(); 
+        codeReaderRef.current = null; // Release the instance
+      }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
@@ -124,11 +112,45 @@ export default function DashboardPage() {
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      setHasCameraPermission(null);
+      // setHasCameraPermission(null); // Decide if you want to reset permission status display
     };
 
+    const requestCameraAndStart = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API not supported.');
+        setHasCameraPermission(false);
+        toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
+        return;
+      }
+
+      let acquiredStream: MediaStream | null = null;
+      try {
+        acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
+      } catch (err) {
+        console.warn("Could not get rear camera (exact), trying ideal:", err);
+        try {
+          acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        } catch (err2) {
+          console.warn("Could not get rear camera (ideal), trying any camera:", err2);
+          try {
+            acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          } catch (finalError) {
+            console.error('Error accessing any camera:', finalError);
+            setHasCameraPermission(false);
+            toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera.'});
+            return;
+          }
+        }
+      }
+      
+      streamRef.current = acquiredStream;
+      setHasCameraPermission(true);
+      await startCameraAndScan(); // Now start scanning with the acquired stream
+    };
+
+
     if (isScanDialogOpen) {
-      startCameraAndScan();
+      requestCameraAndStart();
     } else {
       stopCameraAndScan();
     }
@@ -183,8 +205,7 @@ export default function DashboardPage() {
       timestamp: Date.now(),
     };
     setPackages(prev => [newPackage, ...prev]);
-    setResiInput(''); // Clear input after adding
-    // setIsCodInput(false); // Keep COD status for next potential scan, or clear if preferred
+    setResiInput(''); 
     toast({ title: "Sukses", description: `Paket ${newPackage.resi} ditambahkan.` });
   };
 
@@ -333,7 +354,7 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 <Label>Pratinjau Kamera Scan</Label>
                 <div className="p-1 border rounded-md bg-muted aspect-video overflow-hidden">
-                  <video ref={videoRef} className="w-full h-full object-cover rounded-md" playsInline />
+                  <video ref={videoRef} className="w-full h-full object-cover rounded-md" playsInline muted />
                 </div>
                 {hasCameraPermission === false && (
                   <Alert variant="destructive">
@@ -371,9 +392,6 @@ export default function DashboardPage() {
               <Button variant="outline" onClick={() => setIsScanDialogOpen(false)}>Batal</Button>
               <Button onClick={() => { 
                 handleAddPackage();
-                // Optionally keep dialog open if successfully added and can add more,
-                // or close it:
-                // setIsScanDialogOpen(false); 
               }}>Simpan Paket</Button>
             </DialogFooter>
           </DialogContent>
@@ -674,4 +692,5 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
+
 
