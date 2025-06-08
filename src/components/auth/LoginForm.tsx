@@ -15,11 +15,15 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
 const loginSchema = z.object({
-  id: z.string().min(1, "ID Kurir tidak boleh kosong"),
+  id: z.string().min(1, "ID Pengguna tidak boleh kosong"),
   password: z.string().min(1, "Password tidak boleh kosong"),
 });
 
 type LoginFormInputs = z.infer<typeof loginSchema>;
+
+// Hardcoded admin credentials (FOR PROTOTYPE ONLY)
+const ADMIN_ID = "ADMIN01";
+const ADMIN_PASSWORD = "admin123";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -33,10 +37,20 @@ export function LoginForm() {
 
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     setIsLoading(true);
+
+    // Check for admin credentials first
+    if (data.id === ADMIN_ID && data.password === ADMIN_PASSWORD) {
+      toast({ title: "Login Admin Berhasil", description: "Mengarahkan ke Panel Admin." });
+      router.push('/admin/couriers'); // Redirect to admin panel
+      setIsLoading(false);
+      return;
+    }
+
+    // If not admin, proceed with courier login
     const success = await login(data.id, data.password);
     setIsLoading(false);
     if (success) {
-      toast({ title: "Login Berhasil", description: "Selamat datang kembali!" });
+      toast({ title: "Login Kurir Berhasil", description: "Selamat datang kembali!" });
       router.push('/dashboard');
     } else {
       toast({ variant: "destructive", title: "Login Gagal", description: "ID atau Password salah." });
@@ -52,11 +66,11 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="id">ID Mitra Kurir</Label>
+            <Label htmlFor="id">ID Pengguna</Label>
             <Input 
               id="id" 
               type="text"
-              placeholder="Contoh: PISTEST2025" 
+              placeholder="Masukkan ID Anda" 
               {...register('id')} 
               className={errors.id ? 'border-destructive' : ''}
             />
@@ -81,3 +95,4 @@ export function LoginForm() {
     </Card>
   );
 }
+
