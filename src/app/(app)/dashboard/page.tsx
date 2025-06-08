@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
     const stopScanAndCamera = () => {
       console.log('BarcodeScanner: Stopping scan and camera...');
-      setScanHintMessage("Kamera tidak aktif.");
+      // scanHintMessage will be managed by the calling context or specific error states
       if (currentControls && typeof currentControls.stop === 'function') {
         try {
           currentControls.stop();
@@ -99,7 +99,7 @@ export default function DashboardPage() {
       currentStream = null;
       currentReader = null;
       currentControls = null;
-      setHasCameraPermission(null);
+      setHasCameraPermission(null); // Initial state: waiting for permission/loading
       setScanHintMessage("Menyiapkan kamera...");
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -135,7 +135,7 @@ export default function DashboardPage() {
         setHasCameraPermission(false);
         setScanHintMessage('Gagal memuat komponen pemindai.');
         toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal memuat komponen pemindai. Periksa konsol.' });
-        stopScanAndCamera();
+        // stopScanAndCamera(); // Already stopped at the beginning
         return;
       }
 
@@ -155,7 +155,7 @@ export default function DashboardPage() {
         setHasCameraPermission(false);
         setScanHintMessage(userMessage);
         toast({ variant: 'destructive', title: 'Kamera Error', description: userMessage });
-        stopScanAndCamera();
+        // stopScanAndCamera(); // Already stopped
         return;
       }
 
@@ -164,16 +164,18 @@ export default function DashboardPage() {
         setHasCameraPermission(false);
         setScanHintMessage('Gagal mendapatkan stream kamera.');
         toast({ variant: 'destructive', title: 'Kamera Error', description: 'Stream kamera tidak valid.' });
-        stopScanAndCamera();
+        // stopScanAndCamera(); // Already stopped
         return;
       }
       
+      // If getUserMedia succeeded, camera permission is granted.
+      setHasCameraPermission(true); 
+
       if (!videoRef.current) {
         console.error("BarcodeScanner: Video element ref not available for stream.");
-        setHasCameraPermission(false);
-        setScanHintMessage('Komponen video tidak siap.');
+        setScanHintMessage('Komponen video tidak siap. Kamera aktif, tapi tidak bisa ditampilkan.');
+        // stopScanAndCamera(); // Stream will be stopped by cleanup if dialog closes.
         toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen video tidak siap.' });
-        stopScanAndCamera();
         return;
       }
 
@@ -182,14 +184,12 @@ export default function DashboardPage() {
         console.log('BarcodeScanner: Attempting to play video...');
         await videoRef.current.play();
         console.log('BarcodeScanner: Video playing.');
-        setHasCameraPermission(true); 
-        setScanHintMessage("Kamera aktif. Arahkan ke barcode.");
+        setScanHintMessage("Kamera aktif. Menyiapkan pemindai..."); // Update hint after video plays
       } catch (playError) {
         console.error("BarcodeScanner: Error playing video:", playError);
-        setHasCameraPermission(false);
-        setScanHintMessage('Gagal memulai video untuk scan.');
+        setScanHintMessage('Gagal memulai video untuk scan. Kamera mungkin aktif tapi pratinjau gagal.');
+        // stopScanAndCamera(); // Stream will be stopped by cleanup.
         toast({ variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.' });
-        stopScanAndCamera();
         return;
       }
       
@@ -218,13 +218,14 @@ export default function DashboardPage() {
 
       if (!currentReader || typeof currentReader.decodeFromContinuously !== 'function') {
         console.error('Failed to create a valid Zxing reader instance or method not found. Final instance state:', currentReader);
-        stopScanAndCamera(); 
-        setHasCameraPermission(false); 
+        // Camera permission is true, but scanner failed. Don't call stopScanAndCamera or setHasCameraPermission(false).
+        setScanHintMessage('Pemindai barcode gagal diinisialisasi. Kamera aktif, tapi fitur scan tidak tersedia.');
         toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal menginisialisasi pemindai barcode (instance tidak valid). Periksa konsol.' });
-        return;
+        return; // Exit, but camera stream remains, hasCameraPermission is true.
       }
 
       console.log('BarcodeScanner: Starting continuous decode...');
+      setScanHintMessage("Kamera aktif. Arahkan ke barcode."); // Scanner is ready
       if (videoRef.current) {
         currentControls = currentReader.decodeFromContinuously(
           videoRef.current,
@@ -238,13 +239,12 @@ export default function DashboardPage() {
               setResiInput(result.getText().toUpperCase());
               toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText().toUpperCase()}` });
               setScanHintMessage(null); 
-            } else if (error && zxingModule) { // Ensure zxingModule is available for instance checks
+            } else if (error && zxingModule) { 
               if (error instanceof zxingModule.NotFoundException) {
                 setScanHintMessage("Barcode tidak terdeteksi. Arahkan lebih jelas atau dekatkan.");
               } else if (error instanceof zxingModule.ChecksumException || error instanceof zxingModule.FormatException) {
                 setScanHintMessage("Barcode terdeteksi tetapi formatnya salah atau rusak.");
               } else {
-                // console.warn('BarcodeScanner: Minor scan error:', error.name, error.message);
                 setScanHintMessage("Error saat memindai barcode.");
               }
             }
@@ -253,9 +253,7 @@ export default function DashboardPage() {
         console.log('BarcodeScanner: Continuous decode initiated. Controls:', currentControls);
       } else {
          console.error("BarcodeScanner: videoRef.current is null just before decodeFromContinuously.");
-         stopScanAndCamera();
-         setHasCameraPermission(false);
-         setScanHintMessage('Komponen video hilang sebelum scan dimulai.');
+         setScanHintMessage('Komponen video hilang sebelum scan dimulai. Kamera aktif, tapi scan gagal.');
          toast({variant: 'destructive', title: 'Scan Error', description: 'Video tidak siap untuk scan.'});
       }
     };
