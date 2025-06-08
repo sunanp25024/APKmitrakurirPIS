@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import type { PackageItem, PackageStatus } from '@/types';
-import { mockUser, mockPackages, motivationalQuotes } from '@/lib/mockData';
+import { mockPackages, motivationalQuotes } from '@/lib/mockData'; // Removed mockUser
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,10 +25,12 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext'; // Added useAuth import
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
 export default function DashboardPage() {
+  const { user } = useAuth(); // Get user from AuthContext
   const [packages, setPackages] = useState<PackageItem[]>(mockPackages);
   const [totalPackagesCarried, setTotalPackagesCarried] = useState(0);
   const [codPackages, setCodPackages] = useState(0);
@@ -91,19 +93,19 @@ export default function DashboardPage() {
   }, [isScanDialogOpen, toast]);
 
   const handleDailyInputChange = () => {
-    if (totalPackagesCarried !== (codPackages + nonCodPackages)) {
-      toast({
-        variant: "destructive",
-        title: "Input Tidak Valid",
-        description: "Jumlah paket COD dan Non-COD harus sama dengan Total Paket Dibawa."
-      });
-      return;
-    }
     if (totalPackagesCarried <= 0) {
        toast({
         variant: "destructive",
         title: "Input Tidak Valid",
         description: "Total Paket Dibawa harus lebih dari 0."
+      });
+      return;
+    }
+    if (totalPackagesCarried !== (codPackages + nonCodPackages)) {
+      toast({
+        variant: "destructive",
+        title: "Input Tidak Valid",
+        description: "Jumlah paket COD dan Non-COD harus sama dengan Total Paket Dibawa."
       });
       return;
     }
@@ -192,7 +194,10 @@ export default function DashboardPage() {
   const packagesByStatus = (status: PackageStatus) => packages.filter(p => p.status === status);
 
   const deliveryActionsActive = useMemo(() => {
-    return isDailyInputSubmitted && packagesByStatus('Proses').length === 0 && packages.length > 0 && packages.length === totalPackagesCarried;
+    return isDailyInputSubmitted && 
+           packagesByStatus('Proses').length === 0 && 
+           packages.length > 0 && 
+           packages.length === totalPackagesCarried;
   }, [isDailyInputSubmitted, packages, totalPackagesCarried]);
 
   const dailyPerformanceData = useMemo(() => {
@@ -207,7 +212,7 @@ export default function DashboardPage() {
           { name: 'Gagal/Pending/Kembali', value: failedOrPending, percentage: (failedOrPending / totalPackagesCarried) * 100 },
           { name: 'Proses/Antar', value: inProgress, percentage: (inProgress / totalPackagesCarried) * 100 },
           { name: 'Belum Scan', value: Math.max(0, remaining), percentage: (Math.max(0,remaining) / totalPackagesCarried) * 100 }
-        ].filter(item => item.value > 0 || item.name === 'Belum Scan'); // Keep 'Belum Scan' even if 0 if others are present
+        ].filter(item => item.value > 0 || (item.name === 'Belum Scan' && (delivered > 0 || failedOrPending > 0 || inProgress > 0 || remaining > 0)));
     }
     return [{ name: 'Belum ada data', value: 1, percentage: 100}];
 
@@ -220,11 +225,11 @@ export default function DashboardPage() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="font-headline text-2xl">Dashboard Kurir</CardTitle>
-            <CardDescription>Selamat datang, {mockUser.fullName}!</CardDescription>
+            <CardDescription>Selamat datang, {user?.fullName || 'Kurir'}!</CardDescription>
           </div>
            <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="h-4 w-4" />
-            <span>{mockUser.workLocation}</span>
+            <span>{user?.workLocation || 'Lokasi Kerja'}</span>
           </div>
         </CardHeader>
         <CardContent>
@@ -270,7 +275,7 @@ export default function DashboardPage() {
           <DialogTrigger asChild>
             <Button variant="outline" className="md:col-span-1 h-full text-lg flex flex-col items-center justify-center p-4 hover:bg-primary/10" onClick={() => setIsScanDialogOpen(true)} disabled={!isDailyInputSubmitted}>
               <ScanLine className="h-12 w-12 text-primary mb-2" />
-              Input/Scan Resi ({packages.length}/{totalPackagesCarried})
+              Input/Scan Resi ({packages.length}/{isDailyInputSubmitted ? totalPackagesCarried : '...'})
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
@@ -317,7 +322,14 @@ export default function DashboardPage() {
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsScanDialogOpen(false)}>Batal</Button>
-              <Button onClick={() => { handleAddPackage(); if (resiInput.trim() && packages.length < totalPackagesCarried) {} else {setIsScanDialogOpen(false)}  }}>Simpan Paket</Button>
+              <Button onClick={() => { 
+                handleAddPackage(); 
+                if (resiInput.trim() && packages.length < totalPackagesCarried) {
+                  // Keep dialog open if successfully added and can add more
+                } else {
+                  setIsScanDialogOpen(false);
+                }
+              }}>Simpan Paket</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -416,11 +428,10 @@ export default function DashboardPage() {
           <PackageTable
             packages={[...packagesByStatus('Tidak Terkirim'), ...packagesByStatus('Pending')]}
             actions={[
-              // This action should transition to 'Dikembalikan'
               (p) => <PackageActionButton key={`return-${p.resi}`} pkg={p} actionType="returnProof" updatePackageStatus={updatePackageStatus} disabled={!isDailyInputSubmitted} />,
             ]}
             emptyMessage="Tidak ada paket pending atau tidak terkirim."
-             showPhoto // Show photo if already returned
+             showPhoto
           />
         </CardContent>
       </Card>
@@ -455,7 +466,7 @@ interface PackageTableProps {
   showRecipientInput?: boolean;
   showRecipientName?: boolean;
   updatePackageStatus?: (resi: string, status: PackageStatus, photoUrl?: string, recipientName?: string) => void;
-  actionsDisabled?: boolean; // To disable inputs/buttons within the table row
+  actionsDisabled?: boolean; 
 }
 
 function PackageTable({ packages, actions = [], emptyMessage, showPhoto, showRecipientInput, showRecipientName, updatePackageStatus, actionsDisabled }: PackageTableProps) {
@@ -515,8 +526,8 @@ function PackageTable({ packages, actions = [], emptyMessage, showPhoto, showRec
               pkg.status === 'Terkirim' ? 'default' : 
               pkg.status === 'Dalam Pengantaran' ? 'outline' :
               pkg.status === 'Proses' ? 'secondary' : 
-              pkg.status === 'Dikembalikan' ? 'default' : // Assuming default is greenish
-              'destructive' // for Tidak Terkirim / Pending
+              pkg.status === 'Dikembalikan' ? 'default' : 
+              'destructive'
             }
             className={
                 pkg.status === 'Terkirim' ? 'bg-green-500 hover:bg-green-600' : 
@@ -526,7 +537,7 @@ function PackageTable({ packages, actions = [], emptyMessage, showPhoto, showRec
             <TableCell className="text-right space-x-1">
               {actions.map((action, idx) => 
                 typeof action === 'function' ? (
-                  action(pkg) // This is PackageActionButton component
+                  action(pkg) 
                 ) : (
                   <Button key={idx} variant={action.variant} size="sm" onClick={() => action.onClick(pkg)} disabled={action.disabled}>
                     <action.icon className="h-4 w-4 mr-1" /> {action.label}
@@ -556,23 +567,22 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
 
 
   const handlePhotoAction = () => {
-    // Simulate photo taking
     const photoPlaceholder = `https://placehold.co/300x200.png?text=Resi+${pkg.resi}`;
     if (actionType === 'photo') {
-      if(!recipientName && pkg.status !== 'Tidak Terkirim') { // Recipient name not needed if marking as 'Tidak Terkirim' via this flow (though usually different button)
+      if(!recipientName && pkg.status !== 'Tidak Terkirim') { 
         toast({variant: 'destructive', title: "Error", description: "Nama penerima harus diisi untuk paket terkirim."});
         return;
       }
       updatePackageStatus(pkg.resi, 'Terkirim', photoPlaceholder, recipientName);
       toast({ title: "Sukses", description: `Paket ${pkg.resi} ditandai terkirim dengan foto.` });
-    } else { // returnProof
-      updatePackageStatus(pkg.resi, 'Dikembalikan', photoPlaceholder, recipientName); // recipientName might not be relevant for return, but keep structure
+    } else { 
+      updatePackageStatus(pkg.resi, 'Dikembalikan', photoPlaceholder, recipientName); 
       toast({ title: "Sukses", description: `Bukti pengembalian paket ${pkg.resi} diupload. Status diubah menjadi 'Dikembalikan'.` });
     }
     setIsInternalDialogOpen(false);
   };
   
-  const Icon = actionType === 'photo' ? Camera : UploadCloud; // Changed ImagePlus to Camera for 'photo'
+  const Icon = actionType === 'photo' ? Camera : UploadCloud; 
   const title = actionType === 'photo' ? "Upload Foto Bukti & Nama Penerima" : "Upload Bukti Paket Dikembalikan";
   const buttonLabel = actionType === 'photo' ? (pkg.photoUrl && pkg.status === 'Terkirim' ? "Lihat/Ubah Bukti" : "Foto & Kirim") : (pkg.photoUrl && pkg.status === 'Dikembalikan' ? "Lihat/Ubah Bukti" : "Upload Bukti Kembali");
   const ButtonIcon = actionType === 'photo' ? (pkg.photoUrl && pkg.status === 'Terkirim' ? Edit3 : Camera) : (pkg.photoUrl && pkg.status === 'Dikembalikan' ? Edit3 : UploadCloud);
@@ -606,7 +616,7 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
             <Image src={pkg.photoUrl} alt="Current proof" width={200} height={150} className="rounded mx-auto" data-ai-hint="delivery proof document" />
           )}
           <div className="flex justify-center">
-             <Button onClick={() => {/* Simulate file input click */ alert("Fitur kamera/upload belum diimplementasikan. Ini adalah simulasi pengambilan foto baru.")}}>
+             <Button onClick={() => {alert("Fitur kamera/upload belum diimplementasikan. Ini adalah simulasi pengambilan foto baru.")}}>
               <Icon className="h-4 w-4 mr-2"/> {(pkg.photoUrl && (pkg.status === 'Terkirim' || pkg.status === 'Dikembalikan')) ? "Ambil/Upload Ulang" : "Ambil/Upload Foto"}
             </Button>
           </div>
@@ -619,5 +629,3 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
-
-

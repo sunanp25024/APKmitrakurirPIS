@@ -1,20 +1,36 @@
 
 import type { User, PackageItem, AttendanceEntry } from '@/types';
-import { format } from "date-fns";
+import { format, subDays } from "date-fns";
 
 
-export const mockUser: User = {
-  id: 'PISTEST2025',
-  fullName: 'John Doe',
-  workLocation: 'Jakarta Pusat',
-  joinDate: '2024-01-15',
-  jobTitle: 'Mitra Kurir',
-  contractStatus: 'Aktif',
-  accountNumber: '1234567890',
-  bankName: 'Bank Central Asia (BCA)',
-  registeredRecipientName: 'John Doe',
-  avatarUrl: 'https://placehold.co/100x100.png',
-};
+export const mockUsers: User[] = [
+  {
+    id: 'PISTEST2025',
+    fullName: 'John Doe',
+    workLocation: 'Jakarta Pusat',
+    joinDate: '2024-01-15',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1234567890',
+    bankName: 'Bank Central Asia (BCA)',
+    registeredRecipientName: 'John Doe',
+    avatarUrl: 'https://placehold.co/100x100.png',
+    password: '123456'
+  },
+  {
+    id: 'SUNANJTN01',
+    fullName: 'Sunan Iskandar',
+    workLocation: 'HUB JATINEGARA',
+    joinDate: '2024-03-10', // Example join date
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '5530535292',
+    bankName: 'Bank Central Asia (BCA)',
+    registeredRecipientName: 'SUNAN ISKANDAR',
+    avatarUrl: 'https://placehold.co/100x100.png?text=SI',
+    password: 'sunan123'
+  }
+];
 
 export const mockPackages: PackageItem[] = [
   // { resi: 'SPX00000001', status: 'Proses', isCod: true, timestamp: Date.now() - 100000 },
@@ -61,4 +77,3 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
     attendance: (daySeed % 10) < 7 ? 'Present' : (daySeed % 10) < 9 ? 'Late' : 'Absent',
   };
 };
-

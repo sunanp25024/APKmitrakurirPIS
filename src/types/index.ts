@@ -9,6 +9,7 @@ export interface User {
   bankName: string; // Jenis Bank
   registeredRecipientName: string; // Nama Penerima (di rekening)
   avatarUrl?: string; // URL for profile photo
+  password?: string; // For mock data simulation only
 }
 
 export type PackageStatus = 

@@ -2,7 +2,7 @@
 "use client";
 
 import type { User } from '@/types';
-import { mockUser } from '@/lib/mockData';
+import { mockUsers } from '@/lib/mockData'; // Changed from mockUser to mockUsers
 import { useRouter } from 'next/navigation';
 import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 
@@ -33,9 +33,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1000));
-    if (id === 'PISTEST2025' && pass === '123456') {
-      setUser(mockUser);
-      localStorage.setItem('mitraKurirUser', JSON.stringify(mockUser));
+    
+    const foundUser = mockUsers.find(u => u.id === id && u.password === pass);
+
+    if (foundUser) {
+      // Remove password from user object before storing in state and localStorage for security best practice, even in mock
+      const { password, ...userToStore } = foundUser;
+      setUser(userToStore);
+      localStorage.setItem('mitraKurirUser', JSON.stringify(userToStore));
       setIsLoading(false);
       return true;
     }
@@ -46,7 +51,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUser(null);
     localStorage.removeItem('mitraKurirUser');
-    router.push('/login');
+    router.push('/login'); // Ensure redirection to login after logout
   };
 
   return (
