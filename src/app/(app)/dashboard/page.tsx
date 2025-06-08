@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import type { PackageItem, PackageStatus } from '@/types';
-import { mockPackages, motivationalQuotes } from '@/lib/mockData'; // Removed mockUser
+import { mockPackages, motivationalQuotes } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -25,12 +25,13 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext'; // Added useAuth import
+import { useAuth } from '@/contexts/AuthContext';
+import { BrowserMultiFormatReader, NotFoundException, ChecksumException, FormatException } from '@zxing/library';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
 export default function DashboardPage() {
-  const { user } = useAuth(); // Get user from AuthContext
+  const { user } = useAuth();
   const [packages, setPackages] = useState<PackageItem[]>(mockPackages);
   const [totalPackagesCarried, setTotalPackagesCarried] = useState(0);
   const [codPackages, setCodPackages] = useState(0);
@@ -44,6 +45,7 @@ export default function DashboardPage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const codeReaderRef = useRef(new BrowserMultiFormatReader());
 
   const { toast } = useToast();
   const router = useRouter();
@@ -53,56 +55,68 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const getCameraPermission = async () => {
+    const codeReader = codeReaderRef.current;
+
+    const startCameraAndScan = async () => {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
         console.error('Camera API not supported.');
         setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Kamera Tidak Didukung',
-          description: 'Browser Anda tidak mendukung akses kamera.',
-        });
+        toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
         return;
       }
 
       let stream: MediaStream | null = null;
       try {
-        // Try for rear camera first (exact)
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
       } catch (err) {
         console.warn("Could not get rear camera (exact), trying ideal:", err);
         try {
-          // Try for rear camera (ideal)
           stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         } catch (err2) {
           console.warn("Could not get rear camera (ideal), trying any camera:", err2);
           try {
-            // Fallback to any camera
             stream = await navigator.mediaDevices.getUserMedia({ video: true });
           } catch (finalError) {
             console.error('Error accessing any camera:', finalError);
             setHasCameraPermission(false);
-            toast({
-              variant: 'destructive',
-              title: 'Akses Kamera Ditolak',
-              description: 'Mohon izinkan akses kamera di pengaturan browser Anda. Jika sudah, coba muat ulang halaman.',
-            });
+            toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera. Coba muat ulang halaman jika masalah berlanjut.'});
             return;
           }
         }
       }
 
       setHasCameraPermission(true);
-      streamRef.current = stream; // Store stream in ref
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        try {
+            // Wait for video to be ready to play
+            await videoRef.current.play();
+            console.log('Starting barcode scan...');
+            codeReader.decodeFromContinuously(undefined, videoRef.current, (result, err) => {
+              if (result) {
+                console.log('Barcode scanned:', result.getText());
+                setResiInput(result.getText().toUpperCase());
+                toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
+                // Consider stopping scan here or providing a button to rescan if needed
+                // codeReader.reset(); // Example: stop after first scan
+              }
+              if (err && !(err instanceof NotFoundException) && !(err instanceof ChecksumException) && !(err instanceof FormatException)) {
+                console.error('Barcode scan error:', err);
+                // Avoid too many toasts for minor scan issues
+                // toast({ variant: "destructive", title: "Scan Error", description: "Gagal memindai barcode." });
+              }
+            });
+          } catch (playError) {
+            console.error("Error playing video for scanning:", playError);
+            setHasCameraPermission(false); // Indicate issue
+            toast({variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.'});
+          }
       }
     };
 
-    if (isScanDialogOpen) {
-      getCameraPermission();
-    } else {
-      // Cleanup when dialog is closed
+    const stopCameraAndScan = () => {
+      codeReader.reset(); // Stop barcode reader
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
@@ -110,17 +124,20 @@ export default function DashboardPage() {
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      setHasCameraPermission(null); // Reset permission status
+      setHasCameraPermission(null);
+    };
+
+    if (isScanDialogOpen) {
+      startCameraAndScan();
+    } else {
+      stopCameraAndScan();
     }
 
     return () => {
-      // Ensure cleanup on component unmount or if dialog closes unexpectedly
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
+      stopCameraAndScan(); // Cleanup on component unmount or if dialog closes unexpectedly
     };
   }, [isScanDialogOpen, toast]);
+
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
@@ -166,8 +183,8 @@ export default function DashboardPage() {
       timestamp: Date.now(),
     };
     setPackages(prev => [newPackage, ...prev]);
-    setResiInput('');
-    setIsCodInput(false);
+    setResiInput(''); // Clear input after adding
+    // setIsCodInput(false); // Keep COD status for next potential scan, or clear if preferred
     toast({ title: "Sukses", description: `Paket ${newPackage.resi} ditambahkan.` });
   };
 
@@ -310,40 +327,40 @@ export default function DashboardPage() {
           </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Input Resi Paket Manual & Scan</DialogTitle>
+              <DialogTitle>Scan & Input Resi Paket</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Scan Barcode (Pratinjau Kamera)</Label>
-                <div className="p-1 border rounded-md bg-muted">
-                  <video ref={videoRef} className="w-full aspect-[4/3] rounded-md" autoPlay muted playsInline />
+                <Label>Pratinjau Kamera Scan</Label>
+                <div className="p-1 border rounded-md bg-muted aspect-video overflow-hidden">
+                  <video ref={videoRef} className="w-full h-full object-cover rounded-md" playsInline />
                 </div>
                 {hasCameraPermission === false && (
                   <Alert variant="destructive">
                     <Camera className="h-4 w-4" />
                     <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
                     <AlertDescription>
-                      Aplikasi memerlukan izin kamera. Mohon aktifkan di pengaturan browser Anda dan muat ulang halaman jika perlu.
+                      Aktifkan izin kamera di browser Anda. Mungkin perlu muat ulang halaman.
                     </AlertDescription>
                   </Alert>
                 )}
-                 {hasCameraPermission === null && videoRef.current?.srcObject === null && ( // Show only if permission not yet granted AND video not active
+                 {hasCameraPermission === null && (
                     <Alert variant="default">
                         <Camera className="h-4 w-4" />
                         <AlertTitle>Menunggu Izin Kamera...</AlertTitle>
                         <AlertDescription>
-                            Izinkan aplikasi untuk menggunakan kamera Anda. Akan dicoba akses kamera belakang terlebih dahulu.
+                            Izinkan aplikasi untuk menggunakan kamera Anda.
                         </AlertDescription>
                     </Alert>
                 )}
-                <p className="text-xs text-muted-foreground text-center">Arahkan kamera ke barcode. Fitur scan otomatis segera hadir.</p>
+                <p className="text-xs text-muted-foreground text-center">Arahkan kamera ke barcode. Hasil scan akan muncul di input di bawah.</p>
               </div>
 
               <Separator />
 
               <div>
-                <Label htmlFor="resi-manual">Nomor Resi (Manual)</Label>
-                <Input id="resi-manual" value={resiInput} onChange={(e) => setResiInput(e.target.value.toUpperCase())} placeholder="Ketik nomor resi" />
+                <Label htmlFor="resi-manual">Nomor Resi</Label>
+                <Input id="resi-manual" value={resiInput} onChange={(e) => setResiInput(e.target.value.toUpperCase())} placeholder="Hasil scan atau ketik manual" />
               </div>
               <div className="flex items-center space-x-2">
                 <Input type="checkbox" id="isCod-manual" checked={isCodInput} onChange={(e) => setIsCodInput(e.target.checked)} className="h-4 w-4"/>
@@ -353,12 +370,10 @@ export default function DashboardPage() {
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsScanDialogOpen(false)}>Batal</Button>
               <Button onClick={() => { 
-                handleAddPackage(); 
-                if (resiInput.trim() && packages.length < totalPackagesCarried) {
-                  // Keep dialog open if successfully added and can add more
-                } else {
-                  setIsScanDialogOpen(false);
-                }
+                handleAddPackage();
+                // Optionally keep dialog open if successfully added and can add more,
+                // or close it:
+                // setIsScanDialogOpen(false); 
               }}>Simpan Paket</Button>
             </DialogFooter>
           </DialogContent>
@@ -569,7 +584,7 @@ function PackageTable({ packages, actions = [], emptyMessage, showPhoto, showRec
                 typeof action === 'function' ? (
                   action(pkg) 
                 ) : (
-                  <Button key={idx} variant={action.variant} size="sm" onClick={() => action.onClick(pkg)} disabled={action.disabled}>
+                  <Button key={idx} variant={action.variant} size="sm" onClick={() => action.onClick(pkg)} disabled={action.disabled || actionsDisabled}>
                     <action.icon className="h-4 w-4 mr-1" /> {action.label}
                   </Button>
                 )
