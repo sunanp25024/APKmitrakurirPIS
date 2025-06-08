@@ -755,6 +755,10 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
   const total = 15 + (daySeed % 10) - 2; // 13 to 23
   const delivered = Math.floor(total * (0.7 + (daySeed % 3) * 0.1)); // 70-90% success rate
   const undeliveredOrPending = total - delivered;
+  
+  // Simulate finalization around 6 PM on that day
+  const finalizedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 18, (daySeed % 60), (daySeed % 60));
+
 
   return {
     date: format(date, "yyyy-MM-dd"),
@@ -763,6 +767,7 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
     undeliveredOrPendingPackages: undeliveredOrPending,
     avgDeliveryTime: 100 + (daySeed % 40) - 20, // 80 to 120 minutes
     attendance: (daySeed % 10) < 7 ? 'Present' : (daySeed % 10) < 9 ? 'Late' : 'Absent',
+    dataFinalizedTimestamp: finalizedDate.getTime(),
   };
 };
 
@@ -777,6 +782,7 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
 // };
 
 export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.map((user, index) => {
+  const today = new Date();
   // Make 'carried' deterministic to avoid hydration issues
   const carried = 20 + (index * 5) % 15 + (index % 5); // e.g. 20-39
   
@@ -785,14 +791,28 @@ export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.m
   const failed = carried - delivered;
   
   let status: AdminCourierDailySummary['status'] = 'Belum Ada Laporan';
+  let activityHour = 10 + (index % 7); // Earlier for not finished
+  let activityMinutes = (index * 13) % 60;
+
+
   if (user.contractStatus === 'Aktif') {
     const statusSeed = (index % 10); // Use index for deterministic status
-    if (statusSeed < 6) status = 'Selesai'; // 60%
-    else if (statusSeed < 9) status = 'Aktif Mengantar'; // 30%
-    else status = 'Belum Ada Laporan'; // 10%
+    if (statusSeed < 6) { // 60% Selesai
+        status = 'Selesai'; 
+        activityHour = 17 + (index % 3); // Between 5 PM and 7 PM
+    } else if (statusSeed < 9) { // 30% Aktif Mengantar
+        status = 'Aktif Mengantar'; 
+        activityHour = 14 + (index % 3); // Between 2 PM and 4 PM
+    } else { // 10% Belum Ada Laporan
+        status = 'Belum Ada Laporan'; 
+    }
   } else {
     status = 'Tidak Aktif';
+    activityHour = 9; // Default for non-active
   }
+  
+  const lastActivityDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), activityHour, activityMinutes, 0);
+
 
   return {
     courierId: user.id,
@@ -805,6 +825,7 @@ export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.m
     packagesFailedOrReturned: failed,
     successRate: carried > 0 ? (delivered / (delivered + failed)) * 100 : 0, // success based on attempted
     status: status,
+    lastActivityTimestamp: lastActivityDate.getTime(),
   };
 });
 
@@ -817,3 +838,4 @@ export const mockAdminDeliveryTimeData: AdminDeliveryTimeDataPoint[] = Array.fro
     delivered: deliveredPackages,
   };
 });
+

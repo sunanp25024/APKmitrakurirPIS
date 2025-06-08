@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, Download, MapPin, Globe, Activity, Map } from 'lucide-react'; // Added Map icon
+import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, Download, MapPin, Globe, Activity, Map, Clock } from 'lucide-react'; // Added Map icon and Clock
 import type { AdminCourierDailySummary, User as CourierUser } from '@/types';
 import { mockAdminCourierSummaries as initialCourierSummaries, mockUsers } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
@@ -84,11 +84,18 @@ export default function AdminReportsPage() {
       const matchesArea = selectedArea === "all" || summary.area === selectedArea;
       const matchesWorkLocation = selectedWorkLocation === "all" || summary.workLocation === selectedWorkLocation;
       
-      // Note: Date filter is not applied here as initialCourierSummaries is not date-specific per entry.
-      // If date filtering on summaries is needed, summary objects would need a 'date' field.
-      return matchesSearch && matchesWilayah && matchesArea && matchesWorkLocation;
-    });
-  }, [searchTerm, selectedWilayah, selectedArea, selectedWorkLocation]);
+      // Date filter on summary.lastActivityTimestamp (assuming selectedDate is for "today's" report)
+      let matchesDate = true;
+      if (selectedDate) {
+        const summaryDate = new Date(summary.lastActivityTimestamp);
+        matchesDate = summaryDate.getFullYear() === selectedDate.getFullYear() &&
+                      summaryDate.getMonth() === selectedDate.getMonth() &&
+                      summaryDate.getDate() === selectedDate.getDate();
+      }
+
+      return matchesSearch && matchesWilayah && matchesArea && matchesWorkLocation && matchesDate;
+    }).sort((a,b) => b.lastActivityTimestamp - a.lastActivityTimestamp); // Sort by most recent activity
+  }, [searchTerm, selectedWilayah, selectedArea, selectedWorkLocation, selectedDate]);
 
 
   const deliveryTimeData = useMemo(() => {
@@ -97,7 +104,6 @@ export default function AdminReportsPage() {
       const totalDeliveredInSummaries = filteredCourierSummaries.reduce((acc, curr) => acc + curr.packagesDelivered, 0);
       const baseDeliveries = filteredCourierSummaries.length > 0 ? totalDeliveredInSummaries / 10 : 0;
       
-      // Ensure deliveredPackagesForHour is at least 5, and scales with baseDeliveries
       const calculatedPackages = Math.floor(baseDeliveries * (0.5 + ((hour + i*2) % 10) / 10) );
       const deliveredPackagesForHour = Math.max(5, calculatedPackages);
 
@@ -106,7 +112,7 @@ export default function AdminReportsPage() {
         delivered: deliveredPackagesForHour,
       };
     });
-  }, [filteredCourierSummaries]);
+  }, [filteredCourierSummaries]); // deliveryTimeData depends on filteredCourierSummaries
 
   const dynamicOverallStats = useMemo(() => {
     const activeCouriersInFilter = mockUsers.filter(user =>
@@ -116,7 +122,7 @@ export default function AdminReportsPage() {
       (selectedWorkLocation === "all" || user.workLocation === selectedWorkLocation)
     ).length;
 
-    const currentSummaries = filteredCourierSummaries;
+    const currentSummaries = filteredCourierSummaries; // Use already filtered summaries for "today"
 
     const totalPackages = currentSummaries.reduce((sum, s) => sum + s.packagesCarried, 0);
     const totalDelivered = currentSummaries.reduce((sum, s) => sum + s.packagesDelivered, 0);
@@ -187,9 +193,9 @@ export default function AdminReportsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard icon={Users} title="Total Kurir Aktif" value={dynamicOverallStats.totalActiveCouriers} description={getFilterDescription()} />
-        <StatCard icon={Package} title="Total Paket Dibawa" value={dynamicOverallStats.totalPackagesToday} description={getFilterDescription()} />
-        <StatCard icon={PackageCheck} title="Total Terkirim" value={dynamicOverallStats.totalDeliveredToday} description={getFilterDescription()} />
-        <StatCard icon={Percent} title="Rate Sukses" value={`${dynamicOverallStats.overallSuccessRateToday.toFixed(1)}%`} description={`${getFilterDescription()}, dari paket coba antar`} />
+        <StatCard icon={Package} title="Total Paket Dibawa (Hari Ini)" value={dynamicOverallStats.totalPackagesToday} description={getFilterDescription()} />
+        <StatCard icon={PackageCheck} title="Total Terkirim (Hari Ini)" value={dynamicOverallStats.totalDeliveredToday} description={getFilterDescription()} />
+        <StatCard icon={Percent} title="Rate Sukses (Hari Ini)" value={`${dynamicOverallStats.overallSuccessRateToday.toFixed(1)}%`} description={`${getFilterDescription()}, dari paket coba antar`} />
       </div>
 
       <Card>
@@ -289,7 +295,7 @@ export default function AdminReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Distribusi Pengiriman per Jam</CardTitle>
-            <CardDescription>Jumlah paket terkirim berdasarkan jam untuk {getFilterDescription()}.</CardDescription>
+            <CardDescription>Jumlah paket terkirim berdasarkan jam untuk {getFilterDescription()} (data hari ini).</CardDescription>
           </CardHeader>
           <CardContent>
              {deliveryTimeData && deliveryTimeData.length > 0 ? (
@@ -311,7 +317,7 @@ export default function AdminReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Target vs Realisasi Pengiriman</CardTitle>
-            <CardDescription>Perbandingan target pengiriman dan realisasi untuk {getFilterDescription()}.</CardDescription>
+            <CardDescription>Perbandingan target pengiriman dan realisasi untuk {getFilterDescription()} (data hari ini).</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center h-[300px]">
              <ResponsiveContainer width="100%" height={300}>
@@ -331,7 +337,7 @@ export default function AdminReportsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Ringkasan Performa Kurir Harian</CardTitle>
-          <CardDescription>Status dan performa masing-masing kurir ({getFilterDescription()})</CardDescription>
+          <CardDescription>Status dan performa masing-masing kurir ({getFilterDescription()}) - {selectedDate ? `Untuk ${format(selectedDate, "dd MMM yyyy")}` : 'Data Terkini'}</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -347,6 +353,7 @@ export default function AdminReportsPage() {
                 <TableHead>Gagal/Kembali</TableHead>
                 <TableHead>Rate Sukses</TableHead>
                 <TableHead>Status Harian</TableHead>
+                <TableHead className="text-right">Update Terakhir</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -374,10 +381,13 @@ export default function AdminReportsPage() {
                     }
                     >{courier.status}</Badge>
                   </TableCell>
+                  <TableCell className="text-right text-xs">
+                    {format(new Date(courier.lastActivityTimestamp), "HH:mm")}
+                  </TableCell>
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center">Tidak ada data kurir yang cocok dengan filter.</TableCell>
+                  <TableCell colSpan={11} className="text-center">Tidak ada data kurir yang cocok dengan filter.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -387,3 +397,4 @@ export default function AdminReportsPage() {
     </div>
   );
 }
+

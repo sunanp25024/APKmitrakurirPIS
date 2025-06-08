@@ -48,6 +48,7 @@ export interface DailyPerformanceData {
   undeliveredOrPendingPackages: number;
   avgDeliveryTime: number; // in minutes
   attendance: 'Present' | 'Late' | 'Absent';
+  dataFinalizedTimestamp: number; // Timestamp when this day's data was considered final
 }
 
 
@@ -71,9 +72,11 @@ export interface AdminCourierDailySummary {
   packagesFailedOrReturned: number;
   successRate: number; // percentage
   status: 'Aktif Mengantar' | 'Selesai' | 'Belum Ada Laporan' | 'Tidak Aktif';
+  lastActivityTimestamp: number; // Timestamp of the last significant activity or update for this summary
 }
 
 export interface AdminDeliveryTimeDataPoint {
   hour: string; // e.g., "09:00", "10:00"
   delivered: number;
 }
+

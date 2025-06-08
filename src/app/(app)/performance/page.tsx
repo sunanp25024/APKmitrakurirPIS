@@ -59,14 +59,17 @@ export default function PerformancePage() {
     }));
   }, [performanceData]);
 
-  const dailyChartData = useMemo(() => {
-    const selectedDayData = performanceData.find(d => d.date === (selectedDate ? format(selectedDate, "yyyy-MM-dd") : ''));
-    if (!selectedDayData || selectedDayData.totalPackages === 0) return [{ name: 'Kosong', value: 1, percent: 100 }]; // Ensure percent is defined
-    return [
-      { name: 'Terkirim', value: selectedDayData.deliveredPackages, percent: (selectedDayData.deliveredPackages / selectedDayData.totalPackages) * 100 },
-      { name: 'Tidak Terkirim/Pending', value: selectedDayData.undeliveredOrPendingPackages, percent: (selectedDayData.undeliveredOrPendingPackages / selectedDayData.totalPackages) * 100 },
-    ].filter(item => item.value > 0); // Filter out zero values for cleaner pie chart
+  const selectedDayFullData = useMemo(() => {
+    return performanceData.find(d => d.date === (selectedDate ? format(selectedDate, "yyyy-MM-dd") : ''));
   }, [performanceData, selectedDate]);
+
+  const dailyChartData = useMemo(() => {
+    if (!selectedDayFullData || selectedDayFullData.totalPackages === 0) return [{ name: 'Kosong', value: 1, percent: 100 }];
+    return [
+      { name: 'Terkirim', value: selectedDayFullData.deliveredPackages, percent: (selectedDayFullData.deliveredPackages / selectedDayFullData.totalPackages) * 100 },
+      { name: 'Tidak Terkirim/Pending', value: selectedDayFullData.undeliveredOrPendingPackages, percent: (selectedDayFullData.undeliveredOrPendingPackages / selectedDayFullData.totalPackages) * 100 },
+    ].filter(item => item.value > 0);
+  }, [selectedDayFullData]);
 
 
   const handleDateChange = (date: Date | undefined) => {
@@ -134,10 +137,17 @@ export default function PerformancePage() {
         <Card>
           <CardHeader>
             <CardTitle>Performa Harian ({selectedDate ? format(selectedDate, "dd MMM yyyy") : 'Pilih Tanggal'})</CardTitle>
-             <CardDescription>Distribusi status pengiriman untuk tanggal yang dipilih.</CardDescription>
+             <CardDescription>
+                Distribusi status pengiriman untuk tanggal yang dipilih.
+                {selectedDayFullData && selectedDayFullData.dataFinalizedTimestamp && (
+                    <span className="block text-xs text-muted-foreground mt-1">
+                        Data difinalisasi pada: {format(new Date(selectedDayFullData.dataFinalizedTimestamp), "HH:mm:ss")}
+                    </span>
+                )}
+             </CardDescription>
           </CardHeader>
           <CardContent>
-            {selectedDate && performanceData.find(d => d.date === format(selectedDate, "yyyy-MM-dd")) && dailyChartData[0].name !== 'Kosong' ? (
+            {selectedDayFullData && dailyChartData[0].name !== 'Kosong' ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
                   <Pie data={dailyChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false} label={({ name, value, percent }) => `${name}: ${value} (${(percent).toFixed(0)}%)`}>
