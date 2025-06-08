@@ -238,7 +238,7 @@ export default function DashboardPage() {
       console.log('useEffect cleanup: isScanDialogOpen changed or component unmounted.');
       stopScanAndCamera();
     };
-  }, [isScanDialogOpen, toast]); 
+  }, [isScanDialogOpen]); // Removed toast from dependencies
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
@@ -771,3 +771,5 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
+
+    
