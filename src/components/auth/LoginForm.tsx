@@ -22,8 +22,12 @@ const loginSchema = z.object({
 type LoginFormInputs = z.infer<typeof loginSchema>;
 
 // Hardcoded admin credentials (FOR PROTOTYPE ONLY)
-const ADMIN_ID = "ADMIN01";
-const ADMIN_PASSWORD = "admin123";
+// Roles: 'master' or 'regular'
+const ADMIN_CREDENTIALS = [
+  { id: "MASTERADMIN", password: "masterpassword", role: "master" },
+  { id: "ADMIN01", password: "admin123", role: "regular" },
+  { id: "SUPERVISOR01", password: "super123", role: "regular" },
+];
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -38,10 +42,19 @@ export function LoginForm() {
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     setIsLoading(true);
 
-    // Check for admin credentials first
-    if (data.id === ADMIN_ID && data.password === ADMIN_PASSWORD) {
-      toast({ title: "Login Admin Berhasil", description: "Mengarahkan ke Panel Admin." });
-      router.push('/admin/couriers'); // Redirect to admin panel
+    const foundAdmin = ADMIN_CREDENTIALS.find(
+      (admin) => admin.id === data.id && admin.password === data.password
+    );
+
+    if (foundAdmin) {
+      toast({ title: `Login Admin (${foundAdmin.role}) Berhasil`, description: "Mengarahkan ke Panel Admin." });
+      // Store admin session with role
+      try {
+        localStorage.setItem('adminSession', JSON.stringify({ id: foundAdmin.id, role: foundAdmin.role }));
+      } catch (e) {
+        console.error("Failed to set admin session in localStorage", e);
+      }
+      router.push('/admin/reports'); // Default admin page
       setIsLoading(false);
       return;
     }
@@ -95,4 +108,3 @@ export function LoginForm() {
     </Card>
   );
 }
-

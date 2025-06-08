@@ -17,6 +17,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ADMIN_MANAGED_USERS_KEY = 'allAdminManagedUsers';
+const ADMIN_SESSION_KEY = 'adminSession'; // Key for admin session
+const COURIER_SESSION_KEY = 'mitraKurirUser'; // Key for courier session
+
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -43,9 +46,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     // Simulate checking for a persisted session for the logged-in user
-    const storedUserSession = localStorage.getItem('mitraKurirUser');
+    const storedUserSession = localStorage.getItem(COURIER_SESSION_KEY);
     if (storedUserSession) {
-      setUser(JSON.parse(storedUserSession));
+      try {
+        setUser(JSON.parse(storedUserSession));
+      } catch (e) {
+        console.error("Failed to parse courier session from localStorage", e);
+        localStorage.removeItem(COURIER_SESSION_KEY);
+      }
     }
     // Initialize the list of available users if not already present
     getAvailableUsers(); 
@@ -62,7 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (foundUser) {
       const { password, ...userToStore } = foundUser; // Don't store password in session
       setUser(userToStore);
-      localStorage.setItem('mitraKurirUser', JSON.stringify(userToStore));
+      localStorage.setItem(COURIER_SESSION_KEY, JSON.stringify(userToStore));
       setIsLoading(false);
       return true;
     }
@@ -72,7 +80,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = () => {
     setUser(null);
-    localStorage.removeItem('mitraKurirUser');
+    localStorage.removeItem(COURIER_SESSION_KEY);
+    localStorage.removeItem(ADMIN_SESSION_KEY); // Also clear admin session on logout
     router.push('/login');
   };
 

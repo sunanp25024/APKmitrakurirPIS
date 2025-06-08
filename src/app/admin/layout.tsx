@@ -1,13 +1,20 @@
 
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { PanelLeft, Home, Users, Briefcase, BarChart3 } from 'lucide-react';
-import { usePathname } from 'next/navigation';
+import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  role?: 'master' | 'regular'; // Role 'master' can see this, 'regular' defaults to all if not specified
+}
 
 export default function AdminLayout({
   children,
@@ -15,11 +22,54 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [adminRole, setAdminRole] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
 
-  const navItems = [
+  useEffect(() => {
+    setIsMounted(true);
+    try {
+      const adminSession = localStorage.getItem('adminSession');
+      if (adminSession) {
+        const sessionData = JSON.parse(adminSession);
+        setAdminRole(sessionData.role);
+      } else {
+        // If no admin session, redirect to login (or handle appropriately)
+        // For now, we assume pages are protected individually or this layout is only for logged-in admins
+      }
+    } catch (error) {
+      console.error("Failed to parse admin session from localStorage:", error);
+      setAdminRole(null);
+    }
+  }, []);
+
+  const baseNavItems: NavItem[] = [
     { href: '/admin/reports', label: 'Laporan & Dashboard', icon: BarChart3 },
     { href: '/admin/couriers', label: 'Manajemen Kurir', icon: Users },
   ];
+  
+  const masterNavItems: NavItem[] = [
+    { href: '/admin/manage-admins', label: 'Manajemen Admin', icon: Settings, role: 'master' },
+  ];
+
+  const getFilteredNavItems = () => {
+    let items = [...baseNavItems];
+    if (adminRole === 'master') {
+      items.push(...masterNavItems);
+    }
+    return items;
+  };
+  
+  const navItems = getFilteredNavItems();
+
+  if (!isMounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-muted/40">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
 
   const AdminBrand = () => (
     <div className="flex items-center gap-2 px-4 py-5 border-b h-16">
