@@ -59,6 +59,23 @@ type CourierFormInputs = z.infer<typeof courierSchema>;
 
 const LOCAL_STORAGE_KEY = 'allAdminManagedUsers';
 
+const bankOptions = [
+  "Bank Central Asia (BCA)",
+  "Bank Mandiri",
+  "Bank Rakyat Indonesia (BRI)",
+  "Bank Negara Indonesia (BNI)",
+  "Bank CIMB Niaga",
+  "Bank Danamon",
+  "Bank Permata",
+  "Bank Tabungan Negara (BTN)",
+  "Bank OCBC NISP",
+  "Bank Panin",
+  "Bank BTPN",
+  "Bank Syariah Indonesia (BSI)",
+  "Lainnya"
+];
+
+
 export default function AdminCouriersPage() {
   const [couriers, setCouriers] = useState<User[]>([]);
   const [isMounted, setIsMounted] = useState(false);
@@ -87,7 +104,7 @@ export default function AdminCouriersPage() {
     }
   });
 
-  const currentPasswordValue = watch('password'); // To help with conditional error message
+  const currentPasswordValue = watch('password'); 
 
   useEffect(() => {
     setIsMounted(true);
@@ -135,7 +152,7 @@ export default function AdminCouriersPage() {
       }
       if (!data.password || data.password.length === 0) {
         toast({ variant: "destructive", title: "Error", description: `Password wajib diisi untuk kurir baru.` });
-        setValue('password', ''); // Clear password if it was an empty string that failed validation
+        setValue('password', ''); 
         return;
       }
       const newCourier: User = { ...userData, password: data.password };
@@ -381,7 +398,26 @@ export default function AdminCouriersPage() {
               </div>
               <div>
                 <Label htmlFor="bankName">Nama Bank</Label>
-                <Input id="bankName" {...register('bankName')} />
+                <Controller
+                  name="bankName"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      defaultValue={field.value}
+                    >
+                      <SelectTrigger id="bankName">
+                        <SelectValue placeholder="Pilih nama bank" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {bankOptions.map(bank => (
+                          <SelectItem key={bank} value={bank}>{bank}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {errors.bankName && <p className="text-sm text-destructive mt-1">{errors.bankName.message}</p>}
               </div>
               <div className="md:col-span-2">
@@ -403,3 +439,5 @@ export default function AdminCouriersPage() {
   );
 }
 
+
+    
