@@ -26,8 +26,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-// Import types from @zxing/library for type checking
-import type { BrowserMultiFormatReader, IScannerControls, BarcodeFormat, DecodeHintType } from '@zxing/library';
+import { BarcodeScanner } from '@/components/scan/BarcodeScanner';
+
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
@@ -44,7 +44,6 @@ export default function DashboardPage() {
   const [motivationalQuote, setMotivationalQuote] = useState('');
   const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const [scanHintMessage, setScanHintMessage] = useState<string | null>(null);
   
   const { toast } = useToast();
@@ -54,228 +53,21 @@ export default function DashboardPage() {
     setMotivationalQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
   }, []);
 
- useEffect(() => {
-    let currentStream: MediaStream | null = null;
-    let currentReader: BrowserMultiFormatReader | null = null;
-    let currentControls: IScannerControls | null = null;
 
-    const stopScanAndCamera = () => {
-      console.log('Attempting to stop scan and camera...');
-      setScanHintMessage(null); 
-      if (currentControls) {
-        console.log('Stopping active scanner controls.');
-        try {
-          currentControls.stop();
-        } catch (e) {
-            console.error('Error stopping scanner controls:', e);
-        }
-        currentControls = null;
-      }
-      if (currentReader) {
-        console.log('Resetting active code reader.');
-        try {
-          currentReader.reset();
-        } catch (e) {
-          console.error('Error resetting code reader during stop:', e);
-        }
-        currentReader = null;
-      }
-      if (currentStream) {
-        console.log('Stopping active camera stream tracks.');
-        currentStream.getTracks().forEach(track => track.stop());
-        currentStream = null;
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-      console.log('Scan and camera stopped.');
-    };
+  const handleScanSuccess = (scannedText: string) => {
+    setResiInput(scannedText);
+    // setIsScanDialogOpen(false); // Optional: close dialog on success
+    toast({ title: "Barcode Terdeteksi!", description: `Resi: ${scannedText}` });
+  };
 
-    const initializeAndStartScanner = async () => {
-      currentStream = null;
-      currentReader = null;
-      currentControls = null;
-      setHasCameraPermission(null); 
-      setScanHintMessage("Menyiapkan kamera...");
-      
-      console.log('Scan dialog opened. Initializing scanner...');
+  const handleScanHint = (message: string | null) => {
+    setScanHintMessage(message);
+  };
 
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Camera API not supported by this browser.');
-        setHasCameraPermission(false);
-        setScanHintMessage('Kamera tidak didukung oleh browser ini.');
-        toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
-        return;
-      }
+  const handleCameraPermissionChange = (permissionStatus: boolean | null) => {
+    setHasCameraPermission(permissionStatus);
+  };
 
-      let zxing: typeof import('@zxing/library') | null = null;
-      try {
-        zxing = await import('@zxing/library');
-        console.log('@zxing/library loaded successfully. Module content:', zxing);
-      } catch (libLoadError) {
-        console.error('Failed to load @zxing/library:', libLoadError);
-        stopScanAndCamera();
-        setHasCameraPermission(false);
-        setScanHintMessage('Gagal memuat komponen pemindai.');
-        toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal memuat komponen pemindai. Periksa konsol.' });
-        return;
-      }
-        
-      if (!zxing || typeof zxing.BrowserMultiFormatReader !== 'function') {
-          console.error('BrowserMultiFormatReader class not found in Zxing module.', zxing);
-          stopScanAndCamera();
-          setHasCameraPermission(false);
-          setScanHintMessage('Komponen pemindai tidak ditemukan.');
-          toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen pemindai tidak ditemukan (gagal load). Periksa konsol.' });
-          return;
-      }
-      console.log('BrowserMultiFormatReader constructor reference:', zxing.BrowserMultiFormatReader);
-      console.log('zxing.BarcodeFormat available:', !!zxing.BarcodeFormat);
-      console.log('zxing.DecodeHintType available:', !!zxing.DecodeHintType);
-      
-      stopScanAndCamera(); 
-
-      try {
-        console.log('Requesting camera permission...');
-        const constraints: MediaStreamConstraints = {
-          video: {
-            facingMode: "environment" 
-          }
-        };
-        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('Camera permission granted and stream obtained.');
-      } catch (permError: any) {
-        console.error('Error obtaining camera stream:', permError);
-        let userMessage = `Gagal mengakses kamera: ${permError.message}`;
-        if (permError.name === "NotAllowedError" || permError.name === "PermissionDeniedError") {
-          userMessage = 'Akses kamera ditolak. Mohon izinkan di pengaturan browser Anda.';
-          toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera di pengaturan browser Anda.' });
-        } else if (permError.name === "NotFoundError" || permError.name === "DevicesNotFoundError") {
-          userMessage = 'Kamera tidak ditemukan di perangkat ini.';
-          toast({ variant: 'destructive', title: 'Kamera Tidak Ditemukan', description: 'Tidak ada kamera yang terdeteksi di perangkat ini.' });
-        } else {
-          toast({ variant: 'destructive', title: 'Kamera Error', description: `Gagal mengakses kamera: ${permError.message}` });
-        }
-        setHasCameraPermission(false);
-        setScanHintMessage(userMessage);
-        return;
-      }
-
-      if (!currentStream) {
-        console.error('Failed to obtain camera stream, currentStream is null.');
-        setHasCameraPermission(false);
-        setScanHintMessage('Gagal mendapatkan stream kamera.');
-        toast({ variant: 'destructive', title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera setelah izin.' });
-        return;
-      }
-
-      setHasCameraPermission(true);
-      setScanHintMessage("Kamera aktif. Arahkan ke barcode.");
-
-      if (!videoRef.current) {
-        console.error("Video element ref not available for scanner.");
-        stopScanAndCamera();
-        setHasCameraPermission(false); 
-        setScanHintMessage('Komponen video tidak siap.');
-        toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen video tidak siap.' });
-        return;
-      }
-
-      videoRef.current.srcObject = currentStream;
-
-      try {
-        await videoRef.current.play();
-        console.log('Video playing. Initializing Zxing reader...');
-      } catch (playError) {
-        console.error("Error playing video for scanning:", playError);
-        stopScanAndCamera();
-        setHasCameraPermission(false); 
-        setScanHintMessage('Gagal memulai video untuk scan.');
-        toast({ variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.' });
-        return;
-      }
-      
-      // Stricter check for BarcodeFormat and DecodeHintType before attempting to use hints
-      if (!zxing.BarcodeFormat || !zxing.DecodeHintType) {
-          console.error('BarcodeFormat or DecodeHintType not available from Zxing module. Cannot initialize reader with format hints.');
-          stopScanAndCamera();
-          setHasCameraPermission(false);
-          setScanHintMessage('Komponen pemindai tidak lengkap.');
-          toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen pemindai barcode tidak lengkap. Gagal menginisialisasi.' });
-          return;
-      }
-
-      try {
-          const hints = new Map();
-          // This block is now guaranteed to run because of the check above
-          const formats = [
-              zxing.BarcodeFormat.QR_CODE, zxing.BarcodeFormat.CODE_128, 
-              zxing.BarcodeFormat.EAN_13, zxing.BarcodeFormat.UPC_A, 
-              zxing.BarcodeFormat.DATA_MATRIX, zxing.BarcodeFormat.CODE_39,
-              zxing.BarcodeFormat.ITF
-          ];
-          hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, formats);
-          hints.set(zxing.DecodeHintType.TRY_HARDER, true); 
-          
-          console.log('Attempting to instantiate BrowserMultiFormatReader with hints:', hints);
-          currentReader = new zxing.BrowserMultiFormatReader(hints, 500); 
-          console.log('BrowserMultiFormatReader instance (with hints) created:', currentReader);
-
-      } catch (readerError) {
-        console.error('Critical error during BrowserMultiFormatReader instantiation:', readerError);
-        currentReader = null; 
-      }
-      
-      if (!currentReader || typeof currentReader.decodeFromContinuously !== 'function') {
-        console.error('Failed to create a valid Zxing reader instance or method not found. Final instance state:', currentReader);
-        stopScanAndCamera();
-        setHasCameraPermission(false);
-        toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal menginisialisasi pemindai barcode (instance tidak valid). Periksa konsol.' });
-        return;
-      }
-
-      console.log('Zxing reader initialized. Starting continuous decode...');
-      currentControls = currentReader.decodeFromContinuously(
-          videoRef.current, 
-          (result, error) => {
-              if (!currentControls) { 
-                console.log('Scan callback received after scanner was stopped. Ignoring.');
-                return; 
-              }
-
-              if (result) {
-                  console.log('Barcode scanned:', result.getText());
-                  setResiInput(result.getText().toUpperCase());
-                  setScanHintMessage(null); 
-                  toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
-              } else if (error) {
-                  if (zxing && error instanceof zxing.NotFoundException) {
-                      setScanHintMessage("Barcode tidak terdeteksi. Arahkan lebih jelas atau dekatkan.");
-                  } else if (zxing && (error instanceof zxing.ChecksumException || error instanceof zxing.FormatException)) {
-                      setScanHintMessage("Barcode terdeteksi tetapi formatnya salah atau rusak.");
-                      console.warn('Barcode format/checksum error:', error);
-                  } else {
-                      // console.error('Barcode scan error (within callback):', error); // Can be noisy
-                      setScanHintMessage("Error saat memindai barcode.");
-                  }
-              }
-          }
-      );
-      console.log('Continuous decode started successfully. Controls:', currentControls);
-
-    }; 
-
-    if (isScanDialogOpen) {
-      initializeAndStartScanner();
-    } else {
-      stopScanAndCamera(); 
-    }
-
-    return () => { 
-      console.log('useEffect cleanup: isScanDialogOpen changed or component unmounted.');
-      stopScanAndCamera();
-    };
-  }, [isScanDialogOpen]); // Removed toast from dependencies
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
@@ -470,7 +262,14 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 <Label>Pratinjau Kamera Scan</Label>
                 <div className="p-1 border rounded-md bg-muted aspect-video overflow-hidden">
-                  <video ref={videoRef} className="w-full h-full object-cover rounded-md" playsInline muted autoPlay />
+                  {isScanDialogOpen && (
+                    <BarcodeScanner
+                      isOpen={isScanDialogOpen}
+                      onScanSuccess={handleScanSuccess}
+                      onScanHint={handleScanHint}
+                      onCameraPermissionChange={handleCameraPermissionChange}
+                    />
+                  )}
                 </div>
                 {hasCameraPermission === false && (
                   <Alert variant="destructive" className="mt-2">
@@ -817,3 +616,4 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
   );
 }
     
+
