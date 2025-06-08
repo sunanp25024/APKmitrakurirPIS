@@ -26,8 +26,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-// Import types from @zxing/library, but not the library itself here
-import type { BrowserMultiFormatReader, IScannerControls } from '@zxing/library';
+// Import types from @zxing/library for type checking if needed, but library itself is dynamically imported
+import type { BrowserMultiFormatReader, IScannerControls, BarcodeFormat, DecodeHintType } from '@zxing/library';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
@@ -43,12 +43,8 @@ export default function DashboardPage() {
   const [isCodInput, setIsCodInput] = useState(false);
   const [motivationalQuote, setMotivationalQuote] = useState('');
   const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null); // null: pending, true: granted, false: denied/error
   const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
-  const scannerControlsRef = useRef<IScannerControls | null>(null);
-
 
   const { toast } = useToast();
   const router = useRouter();
@@ -57,160 +53,171 @@ export default function DashboardPage() {
     setMotivationalQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
   }, []);
 
-  useEffect(() => {
-    let currentStream: MediaStream | null = null;
-    let currentReader: BrowserMultiFormatReader | null = null;
-    let currentControls: IScannerControls | null = null;
+ useEffect(() => {
+    // These variables are local to this useEffect instance's lifecycle
+    let activeStream: MediaStream | null = null;
+    let activeCodeReader: BrowserMultiFormatReader | null = null;
+    let activeScannerControls: IScannerControls | null = null;
 
-    const stopCameraAndScan = () => {
-      if (currentControls) {
-        console.log('Stopping scanner controls.');
-        currentControls.stop();
-        currentControls = null;
-        scannerControlsRef.current = null;
-      }
-      if (currentReader && typeof currentReader.reset === 'function') {
-        console.log('Resetting code reader.');
+    const stopScanAndCamera = () => {
+      console.log('Attempting to stop scan and camera...');
+      if (activeScannerControls) {
+        console.log('Stopping active scanner controls.');
         try {
-          currentReader.reset();
+          activeScannerControls.stop();
         } catch (e) {
-          console.error('Error resetting code reader:', e);
+            console.error('Error stopping scanner controls:', e);
         }
-        currentReader = null;
-        codeReaderRef.current = null;
+        activeScannerControls = null;
       }
-
-      if (currentStream) {
-        console.log('Stopping camera stream tracks.');
-        currentStream.getTracks().forEach(track => track.stop());
-        currentStream = null;
-        streamRef.current = null;
+      if (activeCodeReader) {
+        console.log('Resetting active code reader.');
+        try {
+          activeCodeReader.reset();
+        } catch (e) {
+          console.error('Error resetting code reader during stop:', e);
+        }
+        activeCodeReader = null;
+      }
+      if (activeStream) {
+        console.log('Stopping active camera stream tracks.');
+        activeStream.getTracks().forEach(track => track.stop());
+        activeStream = null;
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      console.log('Camera and scan stopped.');
+      console.log('Scan and camera stopped.');
     };
 
-    const startCameraAndScan = async (zxing: any) => {
-      if (!currentStream) {
-        console.error("Stream not available for scanning.");
-        setHasCameraPermission(false);
-        return;
-      }
-      if (!videoRef.current) {
-        console.error("Video element not available for scanning.");
-        setHasCameraPermission(false);
-        return;
-      }
-
-      videoRef.current.srcObject = currentStream;
-      try {
-        await videoRef.current.play();
-        console.log('Video playing, attempting to start barcode scan...');
-
-        currentReader = new zxing.BrowserMultiFormatReader();
-        codeReaderRef.current = currentReader;
-
-        if (currentReader && typeof currentReader.decodeFromContinuously === 'function') {
-          console.log('Reader instance created, calling decodeFromContinuously.');
-          currentControls = await currentReader.decodeFromContinuously(videoRef.current, (result: any, err: any) => {
-            // Ensure this specific reader instance is still active
-            if (codeReaderRef.current !== currentReader || !currentControls) {
-              console.log('Reader was reset or changed during scan callback, or controls were stopped. Ignoring result.');
-              return;
-            }
-            if (result) {
-              console.log('Barcode scanned:', result.getText());
-              setResiInput(result.getText().toUpperCase());
-              toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
-              // Optionally stop scanning or close dialog
-              // setIsScanDialogOpen(false); // or currentControls?.stop();
-            }
-            if (err && !(err instanceof zxing.NotFoundException) && !(err instanceof zxing.ChecksumException) && !(err instanceof zxing.FormatException)) {
-              console.error('Barcode scan error:', err);
-            }
-          });
-          scannerControlsRef.current = currentControls;
-        } else {
-          console.error('Failed to create a valid reader instance or decodeFromContinuously method not found.', currentReader);
-          setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal memulai pemindai barcode.' });
-        }
-      } catch (playError) {
-        console.error("Error playing video for scanning:", playError);
-        setHasCameraPermission(false);
-        toast({ variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.' });
-      }
-    };
-    
-    const initializeScanner = async () => {
+    const initializeAndStartScanner = async () => {
       if (!isScanDialogOpen) return;
 
-      setHasCameraPermission(null); // Indicate we are requesting
-      console.log('Scan dialog opened, requesting camera and loading scanner library...');
+      setHasCameraPermission(null); // Indicate we are requesting/initializing
+      console.log('Scan dialog opened. Initializing scanner...');
 
       try {
         const zxing = await import('@zxing/library');
-        console.log('@zxing/library loaded successfully');
+        console.log('@zxing/library loaded successfully.');
 
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          console.error('Camera API not supported.');
+          console.error('Camera API not supported by this browser.');
           setHasCameraPermission(false);
           toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
           return;
         }
+        
+        // Stop any previous instances first
+        stopScanAndCamera();
 
-        let acquiredStream: MediaStream | null = null;
+        // Get camera stream
         try {
-          acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
-        } catch (err) {
-          console.warn("Could not get rear camera (exact), trying ideal:", err);
-          try {
-            acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-          } catch (err2) {
-            console.warn("Could not get rear camera (ideal), trying any camera:", err2);
-            try {
-              acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            } catch (finalError) {
-              console.error('Error accessing any camera:', finalError);
-              setHasCameraPermission(false);
-              toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera.' });
-              return;
-            }
+          console.log('Requesting camera permission...');
+          activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+          console.log('Camera permission granted and stream obtained.');
+        } catch (permError: any) {
+          console.error('Error obtaining camera stream:', permError);
+          if (permError.name === "NotAllowedError" || permError.name === "PermissionDeniedError") {
+            toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera di pengaturan browser Anda.' });
+          } else if (permError.name === "NotFoundError" || permError.name === "DevicesNotFoundError") {
+            toast({ variant: 'destructive', title: 'Kamera Tidak Ditemukan', description: 'Tidak ada kamera yang terdeteksi di perangkat ini.' });
+          } else {
+            toast({ variant: 'destructive', title: 'Kamera Error', description: `Gagal mengakses kamera: ${permError.message}` });
           }
+          setHasCameraPermission(false);
+          return;
+        }
+
+        if (!activeStream) {
+          console.error('Failed to obtain camera stream, activeStream is null.');
+          setHasCameraPermission(false);
+          toast({ title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera setelah izin.' });
+          return;
+        }
+
+        setHasCameraPermission(true); // Permission granted and stream obtained
+
+        if (!videoRef.current) {
+          console.error("Video element ref not available for scanner.");
+          stopScanAndCamera(); // Clean up acquired stream
+          setHasCameraPermission(false); 
+          toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen video tidak siap.' });
+          return;
+        }
+
+        videoRef.current.srcObject = activeStream;
+
+        try {
+          await videoRef.current.play();
+          console.log('Video playing. Initializing Zxing reader...');
+        } catch (playError) {
+          console.error("Error playing video for scanning:", playError);
+          stopScanAndCamera();
+          setHasCameraPermission(false); 
+          toast({ variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.' });
+          return;
         }
         
-        if (acquiredStream) {
-          currentStream = acquiredStream;
-          streamRef.current = currentStream; // Keep a ref for external access if needed, though primarily use currentStream
-          setHasCameraPermission(true);
-          console.log('Camera permission granted, starting scan process.');
-          await startCameraAndScan(zxing);
-        } else {
+        const hints = new Map();
+        const formats = [zxing.BarcodeFormat.QR_CODE, zxing.BarcodeFormat.CODE_128, zxing.BarcodeFormat.EAN_13, zxing.BarcodeFormat.UPC_A, zxing.BarcodeFormat.DATA_MATRIX];
+        hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, formats);
+        // hints.set(zxing.DecodeHintType.TRY_HARDER, true); // Can enable for more thorough scanning, might impact performance
+
+        activeCodeReader = new zxing.BrowserMultiFormatReader(hints);
+        
+        if (!activeCodeReader || typeof activeCodeReader.decodeFromContinuously !== 'function') {
+          console.error('Failed to create a valid Zxing reader instance or method not found.');
+          stopScanAndCamera();
           setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera.' });
+          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal membuat instance pemindai barcode.' });
+          return;
         }
 
-      } catch (libraryError) {
-        console.error("Failed to load @zxing/library or other init error:", libraryError);
-        toast({ variant: "destructive", title: "Library Error", description: "Gagal memuat library pemindai." });
+        console.log('Zxing reader initialized. Starting continuous decode...');
+        activeScannerControls = await activeCodeReader.decodeFromContinuously(
+          videoRef.current,
+          (result, error) => {
+            if (!activeScannerControls) {
+              // This means stopScanAndCamera was called, so this scan session is no longer active.
+              // console.log('Scan callback received, but scanner session was already stopped. Ignoring.');
+              return;
+            }
+
+            if (result) {
+              console.log('Barcode scanned:', result.getText());
+              setResiInput(result.getText().toUpperCase());
+              toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
+              // Optional: Stop scanning after first success
+              // stopScanAndCamera();
+              // setIsScanDialogOpen(false); // If you want to close dialog after scan
+            }
+            if (error && !(error instanceof zxing.NotFoundException) && !(error instanceof zxing.ChecksumException) && !(error instanceof zxing.FormatException)) {
+              console.error('Barcode scan error (within callback):', error);
+              // Consider a toast for persistent scan errors, but be careful not to flood the user
+            }
+          }
+        );
+        console.log('Continuous decode started successfully.');
+
+      } catch (libraryOrInitError) {
+        console.error("General error during scanner initialization process:", libraryOrInitError);
+        toast({ variant: "destructive", title: "Scan Initialization Error", description: "Gagal memuat atau memulai pemindai." });
+        stopScanAndCamera(); 
         setHasCameraPermission(false);
       }
     };
 
     if (isScanDialogOpen) {
-      initializeScanner();
+      initializeAndStartScanner();
     } else {
-      stopCameraAndScan();
+      stopScanAndCamera(); 
     }
 
-    return () => {
-      console.log('useEffect cleanup: stopping camera and scan.');
-      stopCameraAndScan();
+    return () => { 
+      console.log('useEffect cleanup: isScanDialogOpen changed or component unmounted.');
+      stopScanAndCamera();
     };
-  }, [isScanDialogOpen, toast]);
-
+  }, [isScanDialogOpen]); // Only re-run when isScanDialogOpen changes
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
@@ -405,14 +412,14 @@ export default function DashboardPage() {
               <div className="space-y-2">
                 <Label>Pratinjau Kamera Scan</Label>
                 <div className="p-1 border rounded-md bg-muted aspect-video overflow-hidden">
-                  <video ref={videoRef} className="w-full h-full object-cover rounded-md" playsInline muted />
+                  <video ref={videoRef} className="w-full h-full object-cover rounded-md" playsInline muted autoPlay />
                 </div>
                 {hasCameraPermission === false && (
                   <Alert variant="destructive">
                     <Camera className="h-4 w-4" />
-                    <AlertTitle>Akses Kamera Diperlukan</AlertTitle>
+                    <AlertTitle>Akses Kamera Diperlukan atau Gagal</AlertTitle>
                     <AlertDescription>
-                      Aktifkan izin kamera di browser Anda. Mungkin perlu muat ulang halaman.
+                      Gagal mengakses kamera. Pastikan izin telah diberikan dan tidak ada aplikasi lain yang menggunakan kamera.
                     </AlertDescription>
                   </Alert>
                 )}
@@ -743,3 +750,5 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
+
+      
