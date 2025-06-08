@@ -21,8 +21,6 @@ const loginSchema = z.object({
 
 type LoginFormInputs = z.infer<typeof loginSchema>;
 
-// Hardcoded admin credentials (FOR PROTOTYPE ONLY)
-// Roles: 'master' or 'regular'
 const ADMIN_CREDENTIALS = [
   { id: "MASTERADMIN", password: "masterpassword", role: "master" },
   { id: "ADMIN01", password: "admin123", role: "regular" },
@@ -43,30 +41,32 @@ export function LoginForm() {
     setIsLoading(true);
 
     const foundAdmin = ADMIN_CREDENTIALS.find(
-      (admin) => admin.id === data.id && admin.password === data.password
+      (admin) => admin.id.toUpperCase() === data.id.toUpperCase() && admin.password === data.password
     );
 
     if (foundAdmin) {
       toast({ title: `Login Admin (${foundAdmin.role}) Berhasil`, description: "Mengarahkan ke Panel Admin." });
-      // Store admin session with role
       try {
         localStorage.setItem('adminSession', JSON.stringify({ id: foundAdmin.id, role: foundAdmin.role }));
       } catch (e) {
         console.error("Failed to set admin session in localStorage", e);
       }
-      router.push('/admin/reports'); // Default admin page
+      router.push('/admin/reports'); 
       setIsLoading(false);
       return;
     }
 
-    // If not admin, proceed with courier login
-    const success = await login(data.id, data.password);
+    const loginResult = await login(data.id, data.password);
     setIsLoading(false);
-    if (success) {
+    if (loginResult.success) {
       toast({ title: "Login Kurir Berhasil", description: "Selamat datang kembali!" });
       router.push('/dashboard');
     } else {
-      toast({ variant: "destructive", title: "Login Gagal", description: "ID atau Password salah." });
+      toast({ 
+        variant: "destructive", 
+        title: "Login Gagal", 
+        description: loginResult.message || "Terjadi kesalahan saat login." 
+      });
     }
   };
 
@@ -108,3 +108,4 @@ export function LoginForm() {
     </Card>
   );
 }
+

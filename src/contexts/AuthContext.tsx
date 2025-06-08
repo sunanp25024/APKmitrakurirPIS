@@ -6,19 +6,25 @@ import { mockUsers as fallbackMockUsers } from '@/lib/mockData';
 import { useRouter } from 'next/navigation';
 import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 
+interface AuthLoginResponse {
+  success: boolean;
+  message?: string;
+  user?: User | null; // Include user if successful, for direct use by caller if needed
+}
+
 interface AuthContextType {
   user: User | null;
-  login: (id: string, pass: string) => Promise<boolean>;
+  login: (id: string, pass: string) => Promise<AuthLoginResponse>;
   logout: () => void;
   isLoading: boolean;
-  getAvailableUsers: () => User[]; // Expose this for admin or other uses
+  getAvailableUsers: () => User[];
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const ADMIN_MANAGED_USERS_KEY = 'allAdminManagedUsers';
-const ADMIN_SESSION_KEY = 'adminSession'; // Key for admin session
-const COURIER_SESSION_KEY = 'mitraKurirUser'; // Key for courier session
+const ADMIN_SESSION_KEY = 'adminSession';
+const COURIER_SESSION_KEY = 'mitraKurirUser';
 
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -32,20 +38,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (storedUsers) {
         return JSON.parse(storedUsers);
       } else {
-        // Initialize localStorage with fallbackMockUsers if it's empty
         localStorage.setItem(ADMIN_MANAGED_USERS_KEY, JSON.stringify(fallbackMockUsers));
         return fallbackMockUsers;
       }
     } catch (error) {
       console.error("Failed to parse users from localStorage:", error);
-      // Fallback to imported mock users if localStorage is corrupt or inaccessible
       return fallbackMockUsers;
     }
   }, []);
 
 
   useEffect(() => {
-    // Simulate checking for a persisted session for the logged-in user
     const storedUserSession = localStorage.getItem(COURIER_SESSION_KEY);
     if (storedUserSession) {
       try {
@@ -55,33 +58,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem(COURIER_SESSION_KEY);
       }
     }
-    // Initialize the list of available users if not already present
     getAvailableUsers(); 
     setIsLoading(false);
   }, [getAvailableUsers]);
 
-  const login = async (id: string, pass: string): Promise<boolean> => {
+  const login = async (id: string, pass: string): Promise<AuthLoginResponse> => {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
+    await new Promise(resolve => setTimeout(resolve, 500)); 
     
     const availableUsers = getAvailableUsers();
     const foundUser = availableUsers.find(u => u.id === id && u.password === pass);
 
     if (foundUser) {
-      const { password, ...userToStore } = foundUser; // Don't store password in session
+      if (foundUser.contractStatus !== 'Aktif') {
+        setIsLoading(false);
+        console.warn(`Login attempt for inactive user: ${id}, Status: ${foundUser.contractStatus}`);
+        return { success: false, message: "Akun Anda tidak aktif. Silakan hubungi admin." };
+      }
+
+      const { password, ...userToStore } = foundUser; 
       setUser(userToStore);
       localStorage.setItem(COURIER_SESSION_KEY, JSON.stringify(userToStore));
       setIsLoading(false);
-      return true;
+      return { success: true, user: userToStore };
     }
     setIsLoading(false);
-    return false;
+    return { success: false, message: "ID atau Password salah." };
   };
 
   const logout = () => {
     setUser(null);
     localStorage.removeItem(COURIER_SESSION_KEY);
-    localStorage.removeItem(ADMIN_SESSION_KEY); // Also clear admin session on logout
+    localStorage.removeItem(ADMIN_SESSION_KEY); 
     router.push('/login');
   };
 
@@ -99,3 +107,4 @@ export const useAuth = () => {
   }
   return context;
 };
+
