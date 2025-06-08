@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings } from 'lucide-react';
+import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings, Loader2 } from 'lucide-react'; // Added Loader2
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
