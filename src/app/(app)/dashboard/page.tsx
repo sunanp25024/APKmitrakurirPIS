@@ -137,7 +137,12 @@ export default function DashboardPage() {
 
       try {
         console.log('Requesting camera permission...');
-        currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        const constraints: MediaStreamConstraints = {
+          video: {
+            facingMode: "environment" 
+          }
+        };
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('Camera permission granted and stream obtained.');
       } catch (permError: any) {
         console.error('Error obtaining camera stream:', permError);
@@ -190,20 +195,28 @@ export default function DashboardPage() {
         return;
       }
       
+      // Stricter check for BarcodeFormat and DecodeHintType before attempting to use hints
+      if (!zxing.BarcodeFormat || !zxing.DecodeHintType) {
+          console.error('BarcodeFormat or DecodeHintType not available from Zxing module. Cannot initialize reader with format hints.');
+          stopScanAndCamera();
+          setHasCameraPermission(false);
+          setScanHintMessage('Komponen pemindai tidak lengkap.');
+          toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen pemindai barcode tidak lengkap. Gagal menginisialisasi.' });
+          return;
+      }
+
       try {
           const hints = new Map();
-          if (zxing.BarcodeFormat && zxing.DecodeHintType) {
-               const formats = [
-                  zxing.BarcodeFormat.QR_CODE, zxing.BarcodeFormat.CODE_128, 
-                  zxing.BarcodeFormat.EAN_13, zxing.BarcodeFormat.UPC_A, 
-                  zxing.BarcodeFormat.DATA_MATRIX, zxing.BarcodeFormat.CODE_39,
-                  zxing.BarcodeFormat.ITF
-              ];
-              hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, formats);
-              hints.set(zxing.DecodeHintType.TRY_HARDER, true); 
-          } else {
-              console.warn('BarcodeFormat or DecodeHintType not available, proceeding without specific format hints. Will use an empty Map for hints.');
-          }
+          // This block is now guaranteed to run because of the check above
+          const formats = [
+              zxing.BarcodeFormat.QR_CODE, zxing.BarcodeFormat.CODE_128, 
+              zxing.BarcodeFormat.EAN_13, zxing.BarcodeFormat.UPC_A, 
+              zxing.BarcodeFormat.DATA_MATRIX, zxing.BarcodeFormat.CODE_39,
+              zxing.BarcodeFormat.ITF
+          ];
+          hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, formats);
+          hints.set(zxing.DecodeHintType.TRY_HARDER, true); 
+          
           console.log('Attempting to instantiate BrowserMultiFormatReader with hints:', hints);
           currentReader = new zxing.BrowserMultiFormatReader(hints, 500); 
           console.log('BrowserMultiFormatReader instance (with hints) created:', currentReader);
@@ -242,7 +255,7 @@ export default function DashboardPage() {
                       setScanHintMessage("Barcode terdeteksi tetapi formatnya salah atau rusak.");
                       console.warn('Barcode format/checksum error:', error);
                   } else {
-                      console.error('Barcode scan error (within callback):', error);
+                      // console.error('Barcode scan error (within callback):', error); // Can be noisy
                       setScanHintMessage("Error saat memindai barcode.");
                   }
               }
@@ -262,7 +275,7 @@ export default function DashboardPage() {
       console.log('useEffect cleanup: isScanDialogOpen changed or component unmounted.');
       stopScanAndCamera();
     };
-  }, [isScanDialogOpen]); 
+  }, [isScanDialogOpen]); // Removed toast from dependencies
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
