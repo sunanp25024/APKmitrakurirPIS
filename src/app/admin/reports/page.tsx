@@ -7,8 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, MapPin, Download } from 'lucide-react';
-import type { AdminOverallStats, AdminCourierDailySummary, AdminDeliveryTimeDataPoint } from '@/types';
-import { mockAdminOverallStats, mockAdminCourierSummaries as initialCourierSummaries, mockAdminDeliveryTimeData } from '@/lib/mockData';
+import type { AdminCourierDailySummary, AdminDeliveryTimeDataPoint, User as CourierUser } from '@/types'; // Added CourierUser
+import { mockAdminCourierSummaries as initialCourierSummaries, mockAdminDeliveryTimeData, mockUsers } from '@/lib/mockData'; // mockAdminOverallStats removed, mockUsers added
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -40,7 +40,6 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value, descripti
 );
 
 export default function AdminReportsPage() {
-  const overallStats: AdminOverallStats = mockAdminOverallStats;
   const deliveryTimeData: AdminDeliveryTimeDataPoint[] = mockAdminDeliveryTimeData;
   
   const [courierSummaries, setCourierSummaries] = useState<AdminCourierDailySummary[]>(initialCourierSummaries);
@@ -55,16 +54,44 @@ export default function AdminReportsPage() {
   }, []);
 
   const filteredCourierSummaries = useMemo(() => {
-    return courierSummaries.filter(summary => {
+    return initialCourierSummaries.filter(summary => { // Filter from initialCourierSummaries
+      const matchesDate = !selectedDate || summary.date === format(selectedDate, "yyyy-MM-dd"); // Assuming summaries might have a date field in future
+      
       const matchesSearch = searchTerm.trim() === "" ||
         summary.courierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         summary.courierId.toLowerCase().includes(searchTerm.toLowerCase());
       
       const matchesLocation = selectedLocation === "all" || summary.workLocation === selectedLocation;
       
-      return matchesSearch && matchesLocation;
+      // For now, we'll ignore date filter on summary data as it's not structured per date in mock
+      return matchesSearch && matchesLocation; 
     });
-  }, [courierSummaries, searchTerm, selectedLocation, selectedDate]);
+  }, [searchTerm, selectedLocation, selectedDate]);
+
+  const dynamicOverallStats = useMemo(() => {
+    const activeCouriersInFilter = mockUsers.filter(user => 
+      user.contractStatus === 'Aktif' && 
+      (selectedLocation === "all" || user.workLocation === selectedLocation)
+    ).length;
+
+    const currentSummaries = filteredCourierSummaries; // Use already filtered summaries for package stats
+
+    const totalPackages = currentSummaries.reduce((sum, s) => sum + s.packagesCarried, 0);
+    const totalDelivered = currentSummaries.reduce((sum, s) => sum + s.packagesDelivered, 0);
+    const totalFailedOrReturned = currentSummaries.reduce((sum, s) => sum + s.packagesFailedOrReturned, 0);
+    
+    const attemptedDeliveries = totalDelivered + totalFailedOrReturned;
+    const successRate = attemptedDeliveries > 0 ? (totalDelivered / attemptedDeliveries) * 100 : 0;
+
+    return {
+      totalActiveCouriers: activeCouriersInFilter,
+      totalPackagesToday: totalPackages,
+      totalDeliveredToday: totalDelivered,
+      totalPendingReturnToday: totalFailedOrReturned, // For consistency if needed elsewhere
+      overallSuccessRateToday: successRate,
+    };
+  }, [selectedLocation, filteredCourierSummaries]);
+
 
   const handleDownloadReport = () => {
     let reportDescription = `Laporan Ringkasan Kurir Harian`;
@@ -97,10 +124,10 @@ export default function AdminReportsPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={Users} title="Total Kurir Aktif" value={overallStats.totalActiveCouriers} />
-        <StatCard icon={Package} title="Total Paket Hari Ini" value={overallStats.totalPackagesToday} />
-        <StatCard icon={PackageCheck} title="Total Terkirim Hari Ini" value={overallStats.totalDeliveredToday} />
-        <StatCard icon={Percent} title="Rate Sukses Keseluruhan (Hari Ini)" value={`${overallStats.overallSuccessRateToday.toFixed(1)}%`} description="Dari paket yang sudah coba diantar" />
+        <StatCard icon={Users} title="Total Kurir Aktif" value={dynamicOverallStats.totalActiveCouriers} description={selectedLocation === "all" ? "Nasional" : `Area ${selectedLocation}`} />
+        <StatCard icon={Package} title="Total Paket Hari Ini" value={dynamicOverallStats.totalPackagesToday} description={selectedLocation === "all" ? "Nasional" : `Area ${selectedLocation}`} />
+        <StatCard icon={PackageCheck} title="Total Terkirim Hari Ini" value={dynamicOverallStats.totalDeliveredToday} description={selectedLocation === "all" ? "Nasional" : `Area ${selectedLocation}`} />
+        <StatCard icon={Percent} title="Rate Sukses (Hari Ini)" value={`${dynamicOverallStats.overallSuccessRateToday.toFixed(1)}%`} description={selectedLocation === "all" ? "Nasional, dari paket coba antar" : `Area ${selectedLocation}, dari paket coba antar`} />
       </div>
 
       <Card>
@@ -124,6 +151,7 @@ export default function AdminReportsPage() {
                     selected={selectedDate}
                     onSelect={setSelectedDate}
                     initialFocus
+                    // disabled={(date) => date > new Date() || date < new Date("2020-01-01")} // Example disabled range
                   />
                 </PopoverContent>
               </Popover>
@@ -170,7 +198,7 @@ export default function AdminReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Distribusi Pengiriman per Jam</CardTitle>
-            <CardDescription>Jumlah paket terkirim berdasarkan jam hari ini.</CardDescription>
+            <CardDescription>Jumlah paket terkirim berdasarkan jam hari ini (data mock statis).</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -188,7 +216,7 @@ export default function AdminReportsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Placeholder Grafik Lain</CardTitle>
-            <CardDescription>Misalnya: Tren Pengiriman Mingguan (Semua Kurir).</CardDescription>
+            <CardDescription>Misalnya: Tren Pengiriman Mingguan (Area Terfilter).</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center h-[300px]">
             <p className="text-muted-foreground">Grafik akan ditampilkan di sini.</p>
@@ -212,7 +240,7 @@ export default function AdminReportsPage() {
                 <TableHead>Paket Terkirim</TableHead>
                 <TableHead>Gagal/Kembali</TableHead>
                 <TableHead>Rate Sukses</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Status Harian</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -228,10 +256,13 @@ export default function AdminReportsPage() {
                   <TableCell>
                     <Badge variant={
                       courier.status === 'Selesai' ? 'default' :
-                      courier.status === 'Aktif Mengantar' ? 'secondary' : 'outline'
+                      courier.status === 'Aktif Mengantar' ? 'secondary' : 
+                      courier.status === 'Belum Ada Laporan' ? 'outline' :
+                      courier.status === 'Tidak Aktif' ? 'destructive' : 'outline' // Added 'Tidak Aktif' and fallback
                     }
                     className={
-                        courier.status === 'Selesai' ? 'bg-green-500 hover:bg-green-600' : ''
+                        courier.status === 'Selesai' ? 'bg-green-500 hover:bg-green-600' : 
+                        courier.status === 'Tidak Aktif' ? 'bg-red-500 hover:bg-red-600' : ''
                     }
                     >{courier.status}</Badge>
                   </TableCell>
@@ -248,6 +279,6 @@ export default function AdminReportsPage() {
     </div>
   );
 }
-
-
     
+
+      
