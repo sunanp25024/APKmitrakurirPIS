@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { PanelLeft, Home, Users, BarChart3 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { cn } from '@/lib/utils';
 
 export default function AdminLayout({
   children,
@@ -33,15 +34,16 @@ export default function AdminLayout({
           </Link>
           <h2 className="text-lg font-semibold text-primary px-1 mb-2">Admin Panel</h2>
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} legacyBehavior passHref>
-              <a
-                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary ${
-                  pathname === item.href ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground'
-                }`}
-              >
-                <item.icon className="h-5 w-5" />
-                {item.label}
-              </a>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary",
+                pathname === item.href ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground'
+              )}
+            >
+              <item.icon className="h-5 w-5" />
+              {item.label}
             </Link>
           ))}
         </nav>
@@ -66,15 +68,16 @@ export default function AdminLayout({
                   </Link>
                   <h2 className="text-xl font-semibold text-primary px-1 mb-2">Admin Panel</h2>
                 {navItems.map((item) => (
-                  <Link key={item.href} href={item.href} legacyBehavior passHref>
-                    <a
-                      className={`flex items-center gap-4 px-2.5 py-2 transition-all hover:text-primary ${
-                        pathname === item.href ? 'text-primary font-semibold bg-muted' : 'text-muted-foreground'
-                      }`}
-                    >
-                      <item.icon className="h-5 w-5" />
-                      {item.label}
-                    </a>
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-4 px-2.5 py-2 transition-all hover:text-primary",
+                       pathname === item.href ? 'text-primary font-semibold bg-muted rounded-md' : 'text-muted-foreground'
+                    )}
+                  >
+                    <item.icon className="h-5 w-5" />
+                    {item.label}
                   </Link>
                 ))}
               </nav>
