@@ -5,7 +5,7 @@ import React from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { PanelLeft, Home, Users, BarChart3 } from 'lucide-react';
+import { PanelLeft, Home, Users, Briefcase, BarChart3 } from 'lucide-react';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -21,76 +21,92 @@ export default function AdminLayout({
     // { href: '/admin/reports', label: 'Laporan Harian', icon: BarChart3 }, // Placeholder for Tahap 2
   ];
 
+  const AdminBrand = () => (
+    <div className="flex items-center gap-2 px-4 py-5 border-b h-16"> {/* Adjusted px and h-16 for consistency */}
+      <Briefcase className="h-6 w-6 text-primary" />
+      <h1 className="text-lg font-semibold text-primary">Admin SPX Kurir</h1>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
+      {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-10 hidden w-60 flex-col border-r bg-background sm:flex">
-        <nav className="flex flex-col items-start gap-2 px-4 py-5">
-          <Link
-            href="/dashboard"
-            className="group flex h-9 w-full items-center justify-start gap-2 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 mb-4"
-          >
-            <Home className="h-5 w-5 transition-all group-hover:scale-110" />
-            <span>Kembali ke App</span>
-          </Link>
-          <h2 className="text-lg font-semibold text-primary px-1 mb-2">Admin Panel</h2>
+        <AdminBrand />
+        <nav className="flex flex-col items-start gap-1 px-2 py-4">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "flex w-full items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary",
-                pathname === item.href ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground'
+                "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all hover:bg-accent hover:text-primary",
+                pathname === item.href ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground'
               )}
             >
-              <item.icon className="h-5 w-5" />
+              <item.icon className="h-4 w-4" />
               {item.label}
             </Link>
           ))}
         </nav>
+        <div className="mt-auto p-4 border-t">
+            <Link href="/dashboard">
+                <Button variant="outline" className="w-full">
+                    <Home className="mr-2 h-4 w-4" />
+                    Ke Aplikasi Kurir
+                </Button>
+            </Link>
+        </div>
       </aside>
-      <div className="flex flex-col sm:gap-4 sm:py-4 sm:pl-64">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button size="icon" variant="outline" className="sm:hidden">
-                <PanelLeft className="h-5 w-5" />
-                <span className="sr-only">Toggle Menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="sm:max-w-xs">
-              <nav className="grid gap-4 text-lg font-medium p-6">
-                 <Link
-                    href="/dashboard"
-                    className="group flex h-10 w-full items-center justify-start gap-2 rounded-md bg-primary px-3 text-base font-medium text-primary-foreground transition-colors hover:bg-primary/90 mb-4"
-                  >
-                    <Home className="h-5 w-5 transition-all group-hover:scale-110" />
-                    <span>Kembali ke App</span>
-                  </Link>
-                  <h2 className="text-xl font-semibold text-primary px-1 mb-2">Admin Panel</h2>
-                {navItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "flex items-center gap-4 px-2.5 py-2 transition-all hover:text-primary",
-                       pathname === item.href ? 'text-primary font-semibold bg-muted rounded-md' : 'text-muted-foreground'
-                    )}
-                  >
-                    <item.icon className="h-5 w-5" />
-                    {item.label}
-                  </Link>
-                ))}
-              </nav>
-            </SheetContent>
-          </Sheet>
-           <div className="relative ml-auto flex-1 md:grow-0">
-            {/* Bisa ditambahkan search atau user admin di sini nanti */}
-          </div>
+
+      {/* Main Content Area */}
+      <div className="flex flex-col sm:pl-60"> {/* Removed sm:gap-4 and sm:py-0 for cleaner structure */}
+        {/* Mobile Header & Sidebar Trigger */}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:border-0 sm:bg-transparent sm:px-6 sm:hidden"> {/* Hide on sm and up, only for mobile */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button size="icon" variant="outline">
+                  <PanelLeft className="h-5 w-5" />
+                  <span className="sr-only">Toggle Menu</span>
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="sm:max-w-xs w-[260px] p-0">
+                <AdminBrand />
+                <nav className="grid gap-2 p-2 text-base font-medium">
+                  {navItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2.5 transition-all hover:bg-accent hover:text-primary",
+                        pathname === item.href ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground'
+                      )}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                    </Link>
+                  ))}
+                </nav>
+                 <div className="absolute bottom-0 left-0 right-0 p-4 border-t">
+                    <Link href="/dashboard">
+                        <Button variant="outline" className="w-full">
+                            <Home className="mr-2 h-4 w-4" />
+                            Ke Aplikasi Kurir
+                        </Button>
+                    </Link>
+                </div>
+              </SheetContent>
+            </Sheet>
+           <div className="font-semibold text-primary text-lg">Admin SPX Kurir</div> {/* Mobile title next to toggle */}
         </header>
-        <main className="grid flex-1 items-start gap-4 p-4 sm:px-6 sm:py-0 md:gap-8">
+        {/* Desktop Header (can be empty or have specific admin actions like profile) */}
+        <header className="sticky top-0 z-30 hidden h-16 items-center justify-end border-b bg-background px-4 sm:flex sm:px-6">
+             {/* Placeholder for admin-specific header content on desktop, e.g., admin profile */}
+        </header>
+        <main className="flex-1 items-start gap-4 p-4 sm:px-6 sm:py-6 md:gap-8">
           {children}
         </main>
       </div>
     </div>
   );
 }
+
