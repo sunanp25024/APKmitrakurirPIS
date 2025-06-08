@@ -35,9 +35,11 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 const courierSchema = z.object({
   id: z.string().min(3, "ID minimal 3 karakter").regex(/^[a-zA-Z0-9_.-]*$/, "ID hanya boleh berisi huruf, angka, _, ., -"),
   fullName: z.string().min(3, "Nama lengkap minimal 3 karakter"),
-  password: z.string().min(6, "Password minimal 6 karakter"),
+  password: z.string().min(6, "Password minimal 6 karakter").or(z.string().length(0)), // Allow empty for edit if not changing
+  wilayah: z.string().min(3, "Wilayah minimal 3 karakter"),
+  area: z.string().min(3, "Area minimal 3 karakter"),
   workLocation: z.string().min(3, "Lokasi kerja minimal 3 karakter"),
-  joinDate: z.string().min(1, "Tanggal join tidak boleh kosong"), // Bisa menggunakan date picker nanti
+  joinDate: z.string().min(1, "Tanggal join tidak boleh kosong"), 
   jobTitle: z.string().min(1, "Jabatan tidak boleh kosong"),
   contractStatus: z.string().min(1, "Status kontrak tidak boleh kosong"),
   accountNumber: z.string().min(1, "Nomor rekening tidak boleh kosong").regex(/^[0-9]*$/, "Nomor rekening hanya boleh angka"),
@@ -60,6 +62,21 @@ export default function AdminCouriersPage() {
 
   const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CourierFormInputs>({
     resolver: zodResolver(courierSchema),
+    defaultValues: {
+      id: '',
+      fullName: '',
+      password: '',
+      wilayah: '',
+      area: '',
+      workLocation: '',
+      joinDate: new Date().toISOString().split('T')[0],
+      jobTitle: 'Mitra Kurir',
+      contractStatus: 'Aktif',
+      accountNumber: '',
+      bankName: '',
+      registeredRecipientName: '',
+      avatarUrl: '',
+    }
   });
 
   useEffect(() => {
@@ -69,13 +86,12 @@ export default function AdminCouriersPage() {
       if (storedUsers) {
         setCouriers(JSON.parse(storedUsers));
       } else {
-        // Initialize with mockUsers if localStorage is empty
         setCouriers(mockUsers);
         localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(mockUsers));
       }
     } catch (error) {
       console.error("Failed to parse users from localStorage:", error);
-      setCouriers(mockUsers); // Fallback to mockUsers on error
+      setCouriers(mockUsers); 
     }
   }, []);
 
@@ -85,17 +101,34 @@ export default function AdminCouriersPage() {
 
   const onSubmit: SubmitHandler<CourierFormInputs> = (data) => {
     let updatedCouriers;
+    const userData = {
+        ...data,
+        avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.fullName.substring(0,2).toUpperCase()}`
+    };
+
     if (editingCourier) {
-      // Edit existing courier
-      updatedCouriers = couriers.map(c => c.id === editingCourier.id ? { ...c, ...data, avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.fullName.substring(0,2).toUpperCase()}` } : c);
+      const courierToUpdate = couriers.find(c => c.id === editingCourier.id);
+      if (!courierToUpdate) return;
+
+      const updatedData = {
+        ...courierToUpdate, // existing data
+        ...userData, // new data from form
+        // Conditionally update password if a new one is provided
+        password: data.password ? data.password : courierToUpdate.password,
+      };
+
+      updatedCouriers = couriers.map(c => c.id === editingCourier.id ? updatedData : c);
       toast({ title: "Kurir Diperbarui", description: `Data untuk ${data.fullName} telah diperbarui.` });
     } else {
-      // Add new courier
       if (couriers.find(c => c.id === data.id)) {
         toast({ variant: "destructive", title: "Error", description: `ID Kurir ${data.id} sudah ada.` });
         return;
       }
-      const newCourier: User = { ...data, avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.fullName.substring(0,2).toUpperCase()}` };
+      if (!data.password) { // Password is required for new courier
+        toast({ variant: "destructive", title: "Error", description: `Password wajib diisi untuk kurir baru.` });
+        return;
+      }
+      const newCourier: User = { ...userData, password: data.password }; // Ensure password is included
       updatedCouriers = [...couriers, newCourier];
       toast({ title: "Kurir Ditambahkan", description: `${data.fullName} telah ditambahkan sebagai kurir.` });
     }
@@ -108,9 +141,12 @@ export default function AdminCouriersPage() {
 
   const handleEdit = (courier: User) => {
     setEditingCourier(courier);
-    // Pre-fill form
     Object.keys(courier).forEach(key => {
-      setValue(key as keyof CourierFormInputs, courier[key as keyof User] || '');
+      if (key === 'password') {
+        setValue(key as keyof CourierFormInputs, ''); // Clear password field for editing
+      } else {
+        setValue(key as keyof CourierFormInputs, courier[key as keyof User] || '');
+      }
     });
     setIsFormOpen(true);
   };
@@ -125,12 +161,14 @@ export default function AdminCouriersPage() {
   };
 
   const openAddForm = () => {
-    reset({ // Reset form with default/empty values
+    reset({ 
         id: '',
         fullName: '',
         password: '',
+        wilayah: '',
+        area: '',
         workLocation: '',
-        joinDate: new Date().toISOString().split('T')[0], // Default to today
+        joinDate: new Date().toISOString().split('T')[0], 
         jobTitle: 'Mitra Kurir',
         contractStatus: 'Aktif',
         accountNumber: '',
@@ -171,6 +209,8 @@ export default function AdminCouriersPage() {
               <TableRow>
                 <TableHead>ID Kurir</TableHead>
                 <TableHead>Nama Lengkap</TableHead>
+                <TableHead>Wilayah</TableHead>
+                <TableHead>Area</TableHead>
                 <TableHead>Lokasi Kerja</TableHead>
                 <TableHead>Status Kontrak</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
@@ -179,13 +219,15 @@ export default function AdminCouriersPage() {
             <TableBody>
               {couriers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center">Tidak ada data kurir.</TableCell>
+                  <TableCell colSpan={7} className="text-center">Tidak ada data kurir.</TableCell>
                 </TableRow>
               ) : (
                 couriers.map((courier) => (
                   <TableRow key={courier.id}>
                     <TableCell className="font-code">{courier.id}</TableCell>
                     <TableCell>{courier.fullName}</TableCell>
+                    <TableCell>{courier.wilayah || '-'}</TableCell>
+                    <TableCell>{courier.area || '-'}</TableCell>
                     <TableCell>{courier.workLocation}</TableCell>
                     <TableCell>{courier.contractStatus}</TableCell>
                     <TableCell className="text-right space-x-2">
@@ -230,11 +272,21 @@ export default function AdminCouriersPage() {
               <div>
                 <Label htmlFor="password">Password</Label>
                 <Input id="password" type="password" {...register('password')} placeholder={editingCourier ? "Kosongkan jika tidak ingin mengubah" : ""}/>
-                {errors.password && !editingCourier && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
-                 {editingCourier && <p className="text-xs text-muted-foreground mt-1">Kosongkan jika tidak ingin mengubah password.</p>}
+                {errors.password && !editingCourier && data.password === "" && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
+                {editingCourier && <p className="text-xs text-muted-foreground mt-1">Kosongkan jika tidak ingin mengubah password.</p>}
               </div>
               <div>
-                <Label htmlFor="workLocation">Lokasi Kerja</Label>
+                <Label htmlFor="wilayah">Wilayah</Label>
+                <Input id="wilayah" {...register('wilayah')} />
+                {errors.wilayah && <p className="text-sm text-destructive mt-1">{errors.wilayah.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="area">Area</Label>
+                <Input id="area" {...register('area')} />
+                {errors.area && <p className="text-sm text-destructive mt-1">{errors.area.message}</p>}
+              </div>
+              <div>
+                <Label htmlFor="workLocation">Lokasi Kerja (HUB)</Label>
                 <Input id="workLocation" {...register('workLocation')} />
                 {errors.workLocation && <p className="text-sm text-destructive mt-1">{errors.workLocation.message}</p>}
               </div>
@@ -290,3 +342,5 @@ export default function AdminCouriersPage() {
   );
 }
 
+
+    
