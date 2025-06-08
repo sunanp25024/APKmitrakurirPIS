@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useForm, type SubmitHandler } from 'react-hook-form';
+import { useForm, type SubmitHandler, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,13 @@ import type { User } from '@/types';
 import { mockUsers } from '@/lib/mockData'; // Fallback
 import { PlusCircle, Edit, Trash2, UserPlus, Info, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const courierSchema = z.object({
   id: z.string().min(3, "ID minimal 3 karakter").regex(/^[a-zA-Z0-9_.-]*$/, "ID hanya boleh berisi huruf, angka, _, ., -"),
@@ -61,7 +68,7 @@ export default function AdminCouriersPage() {
 
   const { toast } = useToast();
 
-  const { register, handleSubmit, reset, formState: { errors }, setValue, watch } = useForm<CourierFormInputs>({
+  const { register, handleSubmit, reset, control, formState: { errors }, setValue, watch } = useForm<CourierFormInputs>({
     resolver: zodResolver(courierSchema),
     defaultValues: {
       id: '',
@@ -146,10 +153,20 @@ export default function AdminCouriersPage() {
   const handleEdit = (courier: User) => {
     setEditingCourier(courier);
     setShowPassword(false);
-    // Reset form with existing courier data, clear password for edit
-    const defaultEditValues: Partial<CourierFormInputs> = {
-      ...courier,
-      password: '', // Clear password field for editing
+    const defaultEditValues: CourierFormInputs = {
+      id: courier.id,
+      fullName: courier.fullName,
+      password: '', 
+      wilayah: courier.wilayah,
+      area: courier.area,
+      workLocation: courier.workLocation,
+      joinDate: courier.joinDate,
+      jobTitle: courier.jobTitle,
+      contractStatus: courier.contractStatus,
+      accountNumber: courier.accountNumber,
+      bankName: courier.bankName,
+      registeredRecipientName: courier.registeredRecipientName,
+      avatarUrl: courier.avatarUrl || '',
     };
     reset(defaultEditValues);
     setIsFormOpen(true);
@@ -328,7 +345,25 @@ export default function AdminCouriersPage() {
               </div>
               <div>
                 <Label htmlFor="contractStatus">Status Kontrak</Label>
-                <Input id="contractStatus" {...register('contractStatus')} />
+                <Controller
+                  name="contractStatus"
+                  control={control}
+                  render={({ field }) => (
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      defaultValue={field.value}
+                    >
+                      <SelectTrigger id="contractStatus">
+                        <SelectValue placeholder="Pilih status kontrak" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Aktif">Aktif</SelectItem>
+                        <SelectItem value="Non-Aktif">Non-Aktif</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
                 {errors.contractStatus && <p className="text-sm text-destructive mt-1">{errors.contractStatus.message}</p>}
               </div>
                <div>
@@ -367,3 +402,4 @@ export default function AdminCouriersPage() {
     </div>
   );
 }
+
