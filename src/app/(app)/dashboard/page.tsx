@@ -2,15 +2,15 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import type { PackageItem, PackageStatus } from '@/types';
-import { mockPackages, motivationalQuotes } from '@/lib/mockData';
+import type { PackageItem, PackageStatus, AdminCourierDailySummary, User as CourierUser } from '@/types';
+import { mockPackages, motivationalQuotes, mockAttendance } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Camera, Edit3, PackageCheck, PackageX, ScanLine, Trash2, Truck, MapPin, CheckCircle, XCircle, Clock, UploadCloud, ImagePlus, DollarSign, Archive, SaveIcon, AlertCircle } from 'lucide-react';
+import { Camera, Edit3, PackageCheck, PackageX, ScanLine, Trash2, Truck, MapPin, CheckCircle, XCircle, Clock, UploadCloud, ImagePlus, DollarSign, Archive, SaveIcon, AlertCircle, LogIn } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
@@ -26,8 +26,11 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { format } from 'date-fns';
+import Link from 'next/link';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
+const LOCAL_STORAGE_DAILY_REPORTS_KEY = 'spxCourierDailySummaries';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -45,9 +48,21 @@ export default function DashboardPage() {
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const [scanHintMessage, setScanHintMessage] = useState<string | null>("Kamera belum aktif.");
   
+  const [hasCheckedInToday, setHasCheckedInToday] = useState<boolean | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   const router = useRouter();
+
+  useEffect(() => {
+    // Check attendance status
+    const todayFormatted = format(new Date(), "yyyy-MM-dd");
+    // For prototype, we assume mockAttendance is relevant to the current user.
+    // In a real app, this would be user-specific.
+    const attendanceEntryForToday = mockAttendance.find(entry => entry.date === todayFormatted && entry.checkInTime);
+    setHasCheckedInToday(!!attendanceEntryForToday);
+  }, []);
+
 
   useEffect(() => {
     setMotivationalQuote(motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)]);
@@ -60,11 +75,9 @@ export default function DashboardPage() {
 
     const stopScanAndCamera = () => {
       console.log('BarcodeScanner: Stopping scan and camera...');
-      // scanHintMessage will be managed by the calling context or specific error states
       if (currentControls && typeof currentControls.stop === 'function') {
         try {
           currentControls.stop();
-          console.log('BarcodeScanner: Scanner controls stopped.');
         } catch (e) {
           console.warn('BarcodeScanner: Error stopping scanner controls:', e);
         }
@@ -74,7 +87,6 @@ export default function DashboardPage() {
       if (currentReader && typeof currentReader.reset === 'function') {
         try {
           currentReader.reset();
-          console.log('BarcodeScanner: Code reader reset.');
         } catch (e) {
           console.warn('BarcodeScanner: Error resetting code reader:', e);
         }
@@ -83,18 +95,15 @@ export default function DashboardPage() {
 
       if (currentStream) {
         currentStream.getTracks().forEach(track => track.stop());
-        console.log('BarcodeScanner: Media stream tracks stopped.');
       }
       currentStream = null;
       
       if (videoRef.current) {
         videoRef.current.srcObject = null;
-        console.log('BarcodeScanner: Video source object nulled.');
       }
     };
 
     const initializeAndStartScanner = async () => {
-      console.log('BarcodeScanner: Initializing and starting scanner...');
       stopScanAndCamera(); 
       currentStream = null;
       currentReader = null;
@@ -103,7 +112,6 @@ export default function DashboardPage() {
       setScanHintMessage("Menyiapkan kamera...");
 
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('BarcodeScanner: Camera API not supported.');
         setHasCameraPermission(false);
         setScanHintMessage('Kamera tidak didukung oleh browser ini.');
         toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
@@ -116,22 +124,15 @@ export default function DashboardPage() {
       let DecodeHintType: any;
 
       try {
-        console.log('BarcodeScanner: Dynamically importing @zxing/library...');
         zxingModule = await import('@zxing/library');
-        console.log('BarcodeScanner: @zxing/library imported:', zxingModule);
-
         BrowserMultiFormatReader = zxingModule.BrowserMultiFormatReader;
         BarcodeFormat = zxingModule.BarcodeFormat;
         DecodeHintType = zxingModule.DecodeHintType;
         
-        console.log('BarcodeScanner: Extracted components - BFMR:', !!BrowserMultiFormatReader, 'BF:', !!BarcodeFormat, 'DHT:', !!DecodeHintType);
-
         if (!BrowserMultiFormatReader) {
-          console.error('BarcodeScanner: BrowserMultiFormatReader class not found in the imported module.');
           throw new Error('BrowserMultiFormatReader class not found');
         }
       } catch (libLoadError) {
-        console.error('BarcodeScanner: Failed to load or process @zxing/library:', libLoadError);
         setHasCameraPermission(false);
         setScanHintMessage('Gagal memuat komponen pemindai.');
         toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal memuat komponen pemindai. Periksa konsol.' });
@@ -146,11 +147,8 @@ export default function DashboardPage() {
             height: { ideal: 480 } 
           } 
         };
-        console.log('BarcodeScanner: Requesting camera access with constraints:', constraints);
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-        console.log('BarcodeScanner: Camera access granted, stream:', currentStream);
       } catch (permError: any) {
-        console.error('BarcodeScanner: Error obtaining camera stream:', permError.name, permError.message);
         let userMessage = `Gagal mengakses kamera: ${permError.message || permError.name}`;
         if (permError.name === "NotAllowedError" || permError.name === "PermissionDeniedError") {
           userMessage = 'Akses kamera ditolak. Mohon izinkan di pengaturan browser Anda.';
@@ -159,13 +157,11 @@ export default function DashboardPage() {
         }
         setHasCameraPermission(false);
         setScanHintMessage(userMessage);
-        // No need to call stopScanAndCamera here, as stream/reader are not yet initialized
         toast({ variant: 'destructive', title: 'Kamera Error', description: userMessage });
         return;
       }
 
       if (!currentStream) {
-        console.error('BarcodeScanner: Failed to get camera stream after permission grant.');
         setHasCameraPermission(false);
         setScanHintMessage('Gagal mendapatkan stream kamera.');
         toast({ variant: 'destructive', title: 'Kamera Error', description: 'Stream kamera tidak valid.' });
@@ -175,21 +171,16 @@ export default function DashboardPage() {
       setHasCameraPermission(true); 
 
       if (!videoRef.current) {
-        console.error("BarcodeScanner: Video element ref not available for stream.");
         setScanHintMessage('Komponen video tidak siap. Kamera aktif, tapi tidak bisa ditampilkan.');
-        // Camera is active, but video element is gone. Stream will be stopped by cleanup if dialog closes.
         toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen video tidak siap.' });
         return;
       }
 
       videoRef.current.srcObject = currentStream;
       try {
-        console.log('BarcodeScanner: Attempting to play video...');
         await videoRef.current.play();
-        console.log('BarcodeScanner: Video playing.');
         setScanHintMessage("Kamera aktif. Menyiapkan pemindai..."); 
       } catch (playError) {
-        console.error("BarcodeScanner: Error playing video:", playError);
         setScanHintMessage('Gagal memulai video untuk scan. Kamera mungkin aktif tapi pratinjau gagal.');
         toast({ variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.' });
         return;
@@ -203,38 +194,29 @@ export default function DashboardPage() {
                 BarcodeFormat.CODE_128,
             ];
             hints.set(DecodeHintType.POSSIBLE_FORMATS, formats);
-            console.log('BarcodeScanner: Attempting to create BrowserMultiFormatReader with hints and timeout:', hints);
             currentReader = new BrowserMultiFormatReader(hints, 500);
         } else {
-            console.warn('@zxing/library: BarcodeFormat or DecodeHintType not available. Attempting to create reader with default constructor.');
             currentReader = new BrowserMultiFormatReader(); 
         }
-        console.log('BarcodeScanner: BrowserMultiFormatReader instance attempt. Result:', currentReader);
       } catch (readerError) {
-        console.error('BarcodeScanner: Error during BrowserMultiFormatReader instantiation:', readerError);
         currentReader = null; 
       }
 
       if (!currentReader || typeof currentReader.decodeFromContinuously !== 'function') {
-        console.error('Failed to create a valid Zxing reader instance or method not found. Final instance state:', currentReader);
-        // Camera permission is true, but scanner failed. Don't call stopScanAndCamera or setHasCameraPermission(false).
         setScanHintMessage('Pemindai barcode gagal diinisialisasi. Kamera aktif, tapi fitur scan tidak tersedia.');
         toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal menginisialisasi pemindai barcode (instance tidak valid). Periksa konsol.' });
         return; 
       }
 
-      console.log('BarcodeScanner: Starting continuous decode...');
       setScanHintMessage("Kamera aktif. Arahkan ke barcode."); 
       if (videoRef.current) {
         currentControls = currentReader.decodeFromContinuously(
           videoRef.current,
           (result: any, error: any) => {
             if (!currentControls) { 
-              console.log('BarcodeScanner: Decode callback fired but controls are null (scanner stopped).');
               return;
             }
             if (result) {
-              console.log('BarcodeScanner: Barcode detected:', result.getText());
               setResiInput(result.getText().toUpperCase());
               toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText().toUpperCase()}` });
               setScanHintMessage(null); 
@@ -249,9 +231,7 @@ export default function DashboardPage() {
             }
           }
         );
-        console.log('BarcodeScanner: Continuous decode initiated. Controls:', currentControls);
       } else {
-         console.error("BarcodeScanner: videoRef.current is null just before decodeFromContinuously.");
          setScanHintMessage('Komponen video hilang sebelum scan dimulai. Kamera aktif, tapi scan gagal.');
          toast({variant: 'destructive', title: 'Scan Error', description: 'Video tidak siap untuk scan.'});
       }
@@ -264,7 +244,6 @@ export default function DashboardPage() {
     }
 
     return () => {
-      console.log('BarcodeScanner: useEffect cleanup for isScanDialogOpen.');
       stopScanAndCamera();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -272,6 +251,14 @@ export default function DashboardPage() {
 
 
   const handleDailyInputChange = () => {
+    if (!hasCheckedInToday) {
+      toast({
+        variant: "destructive",
+        title: "Absensi Diperlukan",
+        description: "Anda harus melakukan check-in absensi terlebih dahulu hari ini."
+      });
+      return;
+    }
     if (totalPackagesCarried <= 0) {
        toast({
         variant: "destructive",
@@ -329,6 +316,10 @@ export default function DashboardPage() {
   };
   
   const handleFinishDay = () => {
+    if (!user) {
+        toast({ variant: "destructive", title: "Error", description: "User tidak ditemukan." });
+        return;
+    }
     if (!isDailyInputSubmitted) {
       toast({ variant: "destructive", title: "Input Harian Belum Disimpan", description: "Harap simpan data paket harian terlebih dahulu." });
       return;
@@ -356,7 +347,45 @@ export default function DashboardPage() {
       return;
     }
 
-    toast({ title: "Pengantaran Hari Ini Selesai", description: "Data akan direset. Mengarahkan ke halaman performa." });
+    // Save daily summary to localStorage
+    const todayDateString = format(new Date(), "yyyy-MM-dd");
+    const deliveredCount = packages.filter(p => p.status === 'Terkirim').length;
+    const failedOrReturnedCount = packages.filter(p => ['Tidak Terkirim', 'Pending', 'Dikembalikan'].includes(p.status)).length;
+    const attemptedDeliveries = deliveredCount + failedOrReturnedCount;
+    const successRate = attemptedDeliveries > 0 ? (deliveredCount / attemptedDeliveries) * 100 : 0;
+
+
+    const dailySummary: AdminCourierDailySummary = {
+      courierId: user.id,
+      courierName: user.fullName,
+      wilayah: user.wilayah,
+      area: user.area,
+      workLocation: user.workLocation,
+      packagesCarried: totalPackagesCarried,
+      packagesDelivered: deliveredCount,
+      packagesFailedOrReturned: failedOrReturnedCount,
+      successRate: successRate,
+      status: 'Selesai',
+      lastActivityTimestamp: Date.now(),
+    };
+
+    try {
+        const existingReportsRaw = localStorage.getItem(LOCAL_STORAGE_DAILY_REPORTS_KEY);
+        const allReports = existingReportsRaw ? JSON.parse(existingReportsRaw) : {};
+        
+        if (!allReports[todayDateString]) {
+            allReports[todayDateString] = {};
+        }
+        allReports[todayDateString][user.id] = dailySummary;
+        localStorage.setItem(LOCAL_STORAGE_DAILY_REPORTS_KEY, JSON.stringify(allReports));
+        
+        toast({ title: "Pengantaran Hari Ini Selesai", description: "Data telah disimpan. Mengarahkan ke halaman performa." });
+
+    } catch (error) {
+        console.error("Error saving daily summary to localStorage:", error);
+        toast({ variant: "destructive", title: "Gagal Menyimpan", description: "Gagal menyimpan ringkasan harian." });
+        return; // Don't proceed if saving failed
+    }
     
     setPackages([]);
     setTotalPackagesCarried(0);
@@ -415,6 +444,21 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {hasCheckedInToday === false && (
+        <Alert variant="destructive">
+          <LogIn className="h-4 w-4" />
+          <AlertTitle>Absensi Diperlukan!</AlertTitle>
+          <AlertDescription>
+            Anda belum melakukan check-in absensi hari ini. 
+            Silakan check-in terlebih dahulu di halaman Absensi sebelum melanjutkan input data paket.
+            <Button asChild variant="link" className="p-0 h-auto ml-1 text-destructive hover:underline">
+                <Link href="/attendance">Ke Halaman Absensi</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-1">
           <CardHeader>
@@ -423,18 +467,18 @@ export default function DashboardPage() {
           <CardContent className="space-y-4">
             <div>
               <Label htmlFor="totalPackagesCarried">Total Paket Dibawa</Label>
-              <Input id="totalPackagesCarried" type="number" value={totalPackagesCarried} onChange={(e) => setTotalPackagesCarried(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah paket" disabled={isDailyInputSubmitted} />
+              <Input id="totalPackagesCarried" type="number" value={totalPackagesCarried} onChange={(e) => setTotalPackagesCarried(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah paket" disabled={isDailyInputSubmitted || !hasCheckedInToday} />
             </div>
             <div>
               <Label htmlFor="codPackages">Total Paket COD</Label>
-              <Input id="codPackages" type="number" value={codPackages} onChange={(e) => setCodPackages(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah COD" disabled={isDailyInputSubmitted} />
+              <Input id="codPackages" type="number" value={codPackages} onChange={(e) => setCodPackages(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah COD" disabled={isDailyInputSubmitted || !hasCheckedInToday} />
             </div>
             <div>
               <Label htmlFor="nonCodPackages">Total Paket Non-COD</Label>
-              <Input id="nonCodPackages" type="number" value={nonCodPackages} onChange={(e) => setNonCodPackages(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah Non-COD" disabled={isDailyInputSubmitted} />
+              <Input id="nonCodPackages" type="number" value={nonCodPackages} onChange={(e) => setNonCodPackages(Math.max(0, parseInt(e.target.value, 10) || 0))} placeholder="Jumlah Non-COD" disabled={isDailyInputSubmitted || !hasCheckedInToday} />
             </div>
             {!isDailyInputSubmitted && (
-              <Button onClick={handleDailyInputChange} className="w-full mt-2">
+              <Button onClick={handleDailyInputChange} className="w-full mt-2" disabled={!hasCheckedInToday}>
                 <SaveIcon className="mr-2 h-4 w-4" /> Simpan Data Harian
               </Button>
             )}
@@ -443,7 +487,7 @@ export default function DashboardPage() {
                 <p>Data harian telah disimpan:</p>
                 <p>Total Paket: <strong>{totalPackagesCarried}</strong></p>
                 <p>COD: <strong>{codPackages}</strong>, Non-COD: <strong>{nonCodPackages}</strong></p>
-                <Button variant="outline" size="sm" onClick={() => setIsDailyInputSubmitted(false)} className="mt-2">Ubah Data</Button>
+                <Button variant="outline" size="sm" onClick={() => setIsDailyInputSubmitted(false)} className="mt-2" disabled={!hasCheckedInToday}>Ubah Data</Button>
               </div>
             )}
           </CardContent>
@@ -451,7 +495,7 @@ export default function DashboardPage() {
         
         <Dialog open={isScanDialogOpen} onOpenChange={setIsScanDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="md:col-span-1 h-full text-lg flex flex-col items-center justify-center p-4 hover:bg-primary/10" disabled={!isDailyInputSubmitted}>
+            <Button variant="outline" className="md:col-span-1 h-full text-lg flex flex-col items-center justify-center p-4 hover:bg-primary/10" disabled={!isDailyInputSubmitted || !hasCheckedInToday}>
               <ScanLine className="h-12 w-12 text-primary mb-2" />
               Input/Scan Resi ({packages.length}/{isDailyInputSubmitted ? totalPackagesCarried : '...'})
             </Button>
@@ -549,8 +593,8 @@ export default function DashboardPage() {
           <PackageTable
             packages={packagesByStatus('Proses')}
             actions={[
-              { label: 'Mulai Antar', icon: Truck, onClick: (p) => updatePackageStatus(p.resi, 'Dalam Pengantaran'), variant: 'default', disabled: !isDailyInputSubmitted },
-              { label: 'Hapus', icon: Trash2, onClick: (p) => deletePackage(p.resi), variant: 'destructive', disabled: !isDailyInputSubmitted }
+              { label: 'Mulai Antar', icon: Truck, onClick: (p) => updatePackageStatus(p.resi, 'Dalam Pengantaran'), variant: 'default', disabled: !isDailyInputSubmitted || !hasCheckedInToday },
+              { label: 'Hapus', icon: Trash2, onClick: (p) => deletePackage(p.resi), variant: 'destructive', disabled: !isDailyInputSubmitted || !hasCheckedInToday }
             ]}
             emptyMessage="Tidak ada paket dalam proses."
           />
@@ -574,13 +618,13 @@ export default function DashboardPage() {
           <PackageTable
             packages={packagesByStatus('Dalam Pengantaran')}
             actions={[
-              (p) => <PackageActionButton key={`photo-${p.resi}`} pkg={p} actionType="photo" updatePackageStatus={updatePackageStatus} disabled={!deliveryActionsActive} />,
-              { label: 'Gagal Kirim', icon: PackageX, onClick: (p) => updatePackageStatus(p.resi, 'Tidak Terkirim'), variant: 'outline', disabled: !deliveryActionsActive }
+              (p) => <PackageActionButton key={`photo-${p.resi}`} pkg={p} actionType="photo" updatePackageStatus={updatePackageStatus} disabled={!deliveryActionsActive || !hasCheckedInToday} />,
+              { label: 'Gagal Kirim', icon: PackageX, onClick: (p) => updatePackageStatus(p.resi, 'Tidak Terkirim'), variant: 'outline', disabled: !deliveryActionsActive || !hasCheckedInToday }
             ]}
             emptyMessage="Tidak ada paket yang sedang diantar."
             showRecipientInput
             updatePackageStatus={updatePackageStatus}
-            actionsDisabled={!deliveryActionsActive}
+            actionsDisabled={!deliveryActionsActive || !hasCheckedInToday}
           />
         </CardContent>
       </Card>
@@ -609,7 +653,7 @@ export default function DashboardPage() {
           <PackageTable
             packages={[...packagesByStatus('Tidak Terkirim'), ...packagesByStatus('Pending')]}
             actions={[
-              (p) => <PackageActionButton key={`return-${p.resi}`} pkg={p} actionType="returnProof" updatePackageStatus={updatePackageStatus} disabled={!isDailyInputSubmitted} />,
+              (p) => <PackageActionButton key={`return-${p.resi}`} pkg={p} actionType="returnProof" updatePackageStatus={updatePackageStatus} disabled={!isDailyInputSubmitted || !hasCheckedInToday} />,
             ]}
             emptyMessage="Tidak ada paket pending atau tidak terkirim."
              showPhoto
@@ -631,7 +675,7 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
-      <Button onClick={handleFinishDay} size="lg" className="w-full mt-6">
+      <Button onClick={handleFinishDay} size="lg" className="w-full mt-6" disabled={!hasCheckedInToday}>
         <Clock className="mr-2 h-5 w-5"/> Selesaikan Pengantaran Hari Ini
       </Button>
     </div>

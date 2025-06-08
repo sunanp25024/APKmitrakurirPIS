@@ -1,14 +1,14 @@
 
 "use client";
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, Download, MapPin, Globe, Activity, Map, Clock } from 'lucide-react'; // Added Map icon and Clock
+import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, Download, MapPin, Globe, Activity, Map, Clock } from 'lucide-react';
 import type { AdminCourierDailySummary, User as CourierUser } from '@/types';
-import { mockAdminCourierSummaries as initialCourierSummaries, mockUsers } from '@/lib/mockData';
+import { mockUsers as fallbackMockUsers } from '@/lib/mockData'; // Renamed to avoid conflict
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -17,7 +17,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from '@/hooks/use-toast';
 
-const COLORS_REPORTS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
+const LOCAL_STORAGE_USERS_KEY = 'allAdminManagedUsers';
+const LOCAL_STORAGE_DAILY_REPORTS_KEY = 'spxCourierDailySummaries';
+
 
 interface StatCardProps {
   icon: React.ElementType;
@@ -40,6 +42,8 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value, descripti
 );
 
 export default function AdminReportsPage() {
+  const [allManagedUsers, setAllManagedUsers] = useState<CourierUser[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
   
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -48,22 +52,38 @@ export default function AdminReportsPage() {
   const [selectedWorkLocation, setSelectedWorkLocation] = useState<string>("all");
   const { toast } = useToast();
 
-  const wilayahOptions = useMemo(() => {
-    const wilayahs = new Set(mockUsers.map(user => user.wilayah).filter(Boolean));
-    return ["all", ...Array.from(wilayahs).sort()];
+  useEffect(() => {
+    setIsMounted(true);
+    try {
+      const storedUsers = localStorage.getItem(LOCAL_STORAGE_USERS_KEY);
+      if (storedUsers) {
+        setAllManagedUsers(JSON.parse(storedUsers));
+      } else {
+        setAllManagedUsers(fallbackMockUsers);
+        localStorage.setItem(LOCAL_STORAGE_USERS_KEY, JSON.stringify(fallbackMockUsers));
+      }
+    } catch (error) {
+      console.error("Failed to parse users from localStorage:", error);
+      setAllManagedUsers(fallbackMockUsers); // Fallback to mock if parsing fails
+    }
   }, []);
 
+  const wilayahOptions = useMemo(() => {
+    const wilayahs = new Set(allManagedUsers.map(user => user.wilayah).filter(Boolean));
+    return ["all", ...Array.from(wilayahs).sort()];
+  }, [allManagedUsers]);
+
   const areaOptions = useMemo(() => {
-    let filteredUsers = mockUsers;
+    let filteredUsers = allManagedUsers;
     if (selectedWilayah !== "all") {
       filteredUsers = filteredUsers.filter(user => user.wilayah === selectedWilayah);
     }
     const areas = new Set(filteredUsers.map(user => user.area).filter(Boolean));
     return ["all", ...Array.from(areas).sort()];
-  }, [selectedWilayah]);
+  }, [allManagedUsers, selectedWilayah]);
 
   const workLocationOptions = useMemo(() => {
-    let filteredUsers = mockUsers;
+    let filteredUsers = allManagedUsers;
     if (selectedWilayah !== "all") {
       filteredUsers = filteredUsers.filter(user => user.wilayah === selectedWilayah);
     }
@@ -72,57 +92,121 @@ export default function AdminReportsPage() {
     }
     const locations = new Set(filteredUsers.map(user => user.workLocation).filter(Boolean));
     return ["all", ...Array.from(locations).sort()];
-  }, [selectedWilayah, selectedArea]);
+  }, [allManagedUsers, selectedWilayah, selectedArea]);
+
+  const generateSimulatedSummary = useCallback((user: CourierUser, date: Date): AdminCourierDailySummary => {
+    const dateSeed = date.getDate() + date.getMonth() * 30 + (user.id.charCodeAt(0) || 7) * 7;
+    const carried = 20 + (dateSeed % 15) + (user.id.length % 5);
+    const deliveredSeed = ((user.id.charCodeAt(1) || 5) % 11) / 10;
+    const delivered = Math.floor(carried * (0.70 + deliveredSeed * 0.25));
+    const failed = carried - delivered;
+    const attempted = delivered + failed;
+    
+    let status: AdminCourierDailySummary['status'] = 'Belum Ada Laporan';
+    let activityHour = 10 + (dateSeed % 7); 
+    let activityMinutes = (dateSeed * 13) % 60;
+
+    if (user.contractStatus === 'Aktif') {
+      const statusSeed = (dateSeed % 10);
+      if (statusSeed < 2) status = 'Belum Ada Laporan'; // More "Belum Ada Laporan"
+      else if (statusSeed < 5) { status = 'Aktif Mengantar'; activityHour = 14 + (dateSeed % 3); }
+      else { status = 'Selesai'; activityHour = 17 + (dateSeed % 3); }
+    } else {
+      status = 'Tidak Aktif';
+      activityHour = 9;
+    }
+    
+    const lastActivityDate = new Date(date.getFullYear(), date.getMonth(), date.getDate(), activityHour, activityMinutes, 0);
+
+    return {
+      courierId: user.id,
+      courierName: user.fullName,
+      wilayah: user.wilayah,
+      area: user.area,
+      workLocation: user.workLocation,
+      packagesCarried: carried,
+      packagesDelivered: delivered,
+      packagesFailedOrReturned: failed,
+      successRate: attempted > 0 ? (delivered / attempted) * 100 : 0,
+      status: status,
+      lastActivityTimestamp: lastActivityDate.getTime(),
+    };
+  }, []);
+
 
   const filteredCourierSummaries = useMemo(() => {
-    return initialCourierSummaries.filter(summary => {
-      const matchesSearch = searchTerm.trim() === "" ||
-        summary.courierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        summary.courierId.toLowerCase().includes(searchTerm.toLowerCase());
+    if (!selectedDate || !isMounted) return [];
 
-      const matchesWilayah = selectedWilayah === "all" || summary.wilayah === selectedWilayah;
-      const matchesArea = selectedArea === "all" || summary.area === selectedArea;
-      const matchesWorkLocation = selectedWorkLocation === "all" || summary.workLocation === selectedWorkLocation;
-      
-      // Date filter on summary.lastActivityTimestamp (assuming selectedDate is for "today's" report)
-      let matchesDate = true;
-      if (selectedDate) {
-        const summaryDate = new Date(summary.lastActivityTimestamp);
-        matchesDate = summaryDate.getFullYear() === selectedDate.getFullYear() &&
-                      summaryDate.getMonth() === selectedDate.getMonth() &&
-                      summaryDate.getDate() === selectedDate.getDate();
-      }
-
-      return matchesSearch && matchesWilayah && matchesArea && matchesWorkLocation && matchesDate;
-    }).sort((a,b) => b.lastActivityTimestamp - a.lastActivityTimestamp); // Sort by most recent activity
-  }, [searchTerm, selectedWilayah, selectedArea, selectedWorkLocation, selectedDate]);
+    const dateKey = format(selectedDate, "yyyy-MM-dd");
+    let dailyReportsForDate: { [courierId: string]: AdminCourierDailySummary } = {};
+    try {
+      const allStoredReportsRaw = localStorage.getItem(LOCAL_STORAGE_DAILY_REPORTS_KEY);
+      const allStoredReports = allStoredReportsRaw ? JSON.parse(allStoredReportsRaw) : {};
+      dailyReportsForDate = allStoredReports[dateKey] || {};
+    } catch (error) {
+      console.error("Error reading daily reports from localStorage:", error);
+    }
+    
+    return allManagedUsers
+      .filter(user => {
+        const matchesSearch = searchTerm.trim() === "" ||
+          user.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.id.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesWilayah = selectedWilayah === "all" || user.wilayah === selectedWilayah;
+        const matchesArea = selectedArea === "all" || user.area === selectedArea;
+        const matchesWorkLocation = selectedWorkLocation === "all" || user.workLocation === selectedWorkLocation;
+        return matchesSearch && matchesWilayah && matchesArea && matchesWorkLocation;
+      })
+      .map(user => {
+        if (dailyReportsForDate[user.id]) {
+          // If actual data exists for this user on this date, use it
+          // Ensure status is 'Selesai' and timestamp reflects completion if read from storage
+          return { ...dailyReportsForDate[user.id], status: 'Selesai' as AdminCourierDailySummary['status'] };
+        }
+        // Otherwise, generate simulated data or 'Tidak Aktif'
+        if (user.contractStatus !== 'Aktif') {
+            return {
+                ...generateSimulatedSummary(user, selectedDate), // generate base structure
+                packagesCarried: 0, packagesDelivered: 0, packagesFailedOrReturned: 0, successRate: 0,
+                status: 'Tidak Aktif' as AdminCourierDailySummary['status'],
+                lastActivityTimestamp: new Date(selectedDate.setHours(9,0,0,0)).getTime() // Default time for inactive
+            };
+        }
+        return generateSimulatedSummary(user, selectedDate);
+      })
+      .sort((a,b) => b.lastActivityTimestamp - a.lastActivityTimestamp);
+  }, [allManagedUsers, selectedDate, searchTerm, selectedWilayah, selectedArea, selectedWorkLocation, generateSimulatedSummary, isMounted]);
 
 
   const deliveryTimeData = useMemo(() => {
+    if (!filteredCourierSummaries.length) return [];
     return Array.from({ length: 10 }, (_, i) => {
       const hour = 9 + i;
-      const totalDeliveredInSummaries = filteredCourierSummaries.reduce((acc, curr) => acc + curr.packagesDelivered, 0);
-      const baseDeliveries = filteredCourierSummaries.length > 0 ? totalDeliveredInSummaries / 10 : 0;
+      // Simulate deliveries based on the number of active couriers in the current filter
+      // and their simulated or actual total delivered packages
+      const totalDeliveredInSummaries = filteredCourierSummaries
+        .filter(s => s.status !== 'Tidak Aktif' && s.status !== 'Belum Ada Laporan')
+        .reduce((acc, curr) => acc + curr.packagesDelivered, 0);
       
-      const calculatedPackages = Math.floor(baseDeliveries * (0.5 + ((hour + i*2) % 10) / 10) );
-      const deliveredPackagesForHour = Math.max(5, calculatedPackages);
-
+      const baseDeliveries = filteredCourierSummaries.length > 0 ? totalDeliveredInSummaries / 10 : 0; // Average over 10 hours
+      const calculatedPackages = Math.floor(baseDeliveries * (0.5 + Math.random() * 0.7)); // Add some randomness
+      
       return {
         hour: `${String(hour).padStart(2, '0')}:00`,
-        delivered: deliveredPackagesForHour,
+        delivered: Math.max(0, calculatedPackages), // Ensure non-negative
       };
     });
-  }, [filteredCourierSummaries]); // deliveryTimeData depends on filteredCourierSummaries
+  }, [filteredCourierSummaries]);
 
   const dynamicOverallStats = useMemo(() => {
-    const activeCouriersInFilter = mockUsers.filter(user =>
+    const activeCouriersInFilter = allManagedUsers.filter(user =>
       user.contractStatus === 'Aktif' &&
       (selectedWilayah === "all" || user.wilayah === selectedWilayah) &&
       (selectedArea === "all" || user.area === selectedArea) &&
       (selectedWorkLocation === "all" || user.workLocation === selectedWorkLocation)
     ).length;
 
-    const currentSummaries = filteredCourierSummaries; // Use already filtered summaries for "today"
+    const currentSummaries = filteredCourierSummaries; 
 
     const totalPackages = currentSummaries.reduce((sum, s) => sum + s.packagesCarried, 0);
     const totalDelivered = currentSummaries.reduce((sum, s) => sum + s.packagesDelivered, 0);
@@ -138,7 +222,7 @@ export default function AdminReportsPage() {
       totalPendingReturnToday: totalFailedOrReturned,
       overallSuccessRateToday: successRate,
     };
-  }, [selectedWilayah, selectedArea, selectedWorkLocation, filteredCourierSummaries]);
+  }, [allManagedUsers, selectedWilayah, selectedArea, selectedWorkLocation, filteredCourierSummaries]);
 
 
   const getFilterDescription = () => {
@@ -182,6 +266,10 @@ export default function AdminReportsPage() {
   };
 
 
+  if (!isMounted) {
+    return <div className="flex justify-center items-center h-screen"><Activity className="h-8 w-8 animate-spin" /> <p className="ml-2">Memuat data laporan...</p></div>;
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -193,9 +281,9 @@ export default function AdminReportsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard icon={Users} title="Total Kurir Aktif" value={dynamicOverallStats.totalActiveCouriers} description={getFilterDescription()} />
-        <StatCard icon={Package} title="Total Paket Dibawa (Hari Ini)" value={dynamicOverallStats.totalPackagesToday} description={getFilterDescription()} />
-        <StatCard icon={PackageCheck} title="Total Terkirim (Hari Ini)" value={dynamicOverallStats.totalDeliveredToday} description={getFilterDescription()} />
-        <StatCard icon={Percent} title="Rate Sukses (Hari Ini)" value={`${dynamicOverallStats.overallSuccessRateToday.toFixed(1)}%`} description={`${getFilterDescription()}, dari paket coba antar`} />
+        <StatCard icon={Package} title="Total Paket Dibawa" value={dynamicOverallStats.totalPackagesToday} description={getFilterDescription()} />
+        <StatCard icon={PackageCheck} title="Total Terkirim" value={dynamicOverallStats.totalDeliveredToday} description={getFilterDescription()} />
+        <StatCard icon={Percent} title="Rate Sukses" value={`${dynamicOverallStats.overallSuccessRateToday.toFixed(1)}%`} description={`${getFilterDescription()}, dari paket coba antar`} />
       </div>
 
       <Card>
@@ -376,8 +464,10 @@ export default function AdminReportsPage() {
                       courier.status === 'Tidak Aktif' ? 'destructive' : 'outline'
                     }
                     className={
-                        courier.status === 'Selesai' ? 'bg-green-500 hover:bg-green-600' :
-                        courier.status === 'Tidak Aktif' ? 'bg-red-500 hover:bg-red-600' : ''
+                        courier.status === 'Selesai' ? 'bg-green-500 hover:bg-green-600 text-white' : // Added text-white for better contrast
+                        courier.status === 'Tidak Aktif' ? 'bg-red-500 hover:bg-red-600 text-white' : // Added text-white
+                        courier.status === 'Aktif Mengantar' ? 'bg-yellow-400 hover:bg-yellow-500 text-yellow-900' : // Custom for active
+                        '' // Default for others
                     }
                     >{courier.status}</Badge>
                   </TableCell>
