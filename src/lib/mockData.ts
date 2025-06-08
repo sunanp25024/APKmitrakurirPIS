@@ -424,7 +424,309 @@ export const mockUsers: User[] = [
     registeredRecipientName: 'Siti Aminah',
     avatarUrl: 'https://placehold.co/100x100.png?text=SA',
     password: 'password123'
+  },
+  // Start of 20 new dummy users
+  {
+    id: 'ZAKIBGR01',
+    fullName: 'Zaki Abdullah',
+    wilayah: 'Jawa Barat',
+    area: 'Bogor Raya',
+    workLocation: 'HUB BOGOR TENGAH',
+    joinDate: '2024-07-20',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334401',
+    bankName: 'Bank BJB',
+    registeredRecipientName: 'Zaki Abdullah',
+    avatarUrl: 'https://placehold.co/100x100.png?text=ZA',
+    password: 'password123'
+  },
+  {
+    id: 'YOGAKUR01',
+    fullName: 'Yoga Pratama',
+    wilayah: 'Jawa Tengah & DIY',
+    area: 'Yogyakarta',
+    workLocation: 'HUB YOGYA KOTA',
+    joinDate: '2024-07-21',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334402',
+    bankName: 'Bank BPD DIY',
+    registeredRecipientName: 'Yoga Pratama',
+    avatarUrl: 'https://placehold.co/100x100.png?text=YP',
+    password: 'password123'
+  },
+  {
+    id: 'XENAJTM01',
+    fullName: 'Xena Putri',
+    wilayah: 'Jawa Timur & Bali Nusra',
+    area: 'Malang Raya',
+    workLocation: 'HUB MALANG KOTA',
+    joinDate: '2024-07-22',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Non-Aktif',
+    accountNumber: '1122334403',
+    bankName: 'Bank Jatim',
+    registeredRecipientName: 'Xena Putri',
+    avatarUrl: 'https://placehold.co/100x100.png?text=XP',
+    password: 'password123'
+  },
+  {
+    id: 'WINDASUM01',
+    fullName: 'Winda Sari',
+    wilayah: 'Sumatera Selatan',
+    area: 'Palembang Kota',
+    workLocation: 'HUB PALEMBANG ILIR',
+    joinDate: '2024-07-23',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334404',
+    bankName: 'Bank Sumsel Babel',
+    registeredRecipientName: 'Winda Sari',
+    avatarUrl: 'https://placehold.co/100x100.png?text=WS',
+    password: 'password123'
+  },
+  {
+    id: 'VIANKAL01',
+    fullName: 'Vian Ferdian',
+    wilayah: 'Kalimantan Timur',
+    area: 'Samarinda',
+    workLocation: 'HUB SAMARINDA ULU',
+    joinDate: '2024-07-24',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334405',
+    bankName: 'Bank Kaltimtara',
+    registeredRecipientName: 'Vian Ferdian',
+    avatarUrl: 'https://placehold.co/100x100.png?text=VF',
+    password: 'password123'
+  },
+  {
+    id: 'UMARSUL01',
+    fullName: 'Umar Bakri',
+    wilayah: 'Sulawesi Selatan',
+    area: 'Makassar Kota',
+    workLocation: 'HUB MAKASSAR PANAKKUKANG',
+    joinDate: '2024-07-25',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334406',
+    bankName: 'Bank Sulselbar',
+    registeredRecipientName: 'Umar Bakri',
+    avatarUrl: 'https://placehold.co/100x100.png?text=UB',
+    password: 'password123'
+  },
+  {
+    id: 'TIARABALI01',
+    fullName: 'Tiara Dewi',
+    wilayah: 'Jawa Timur & Bali Nusra',
+    area: 'Denpasar',
+    workLocation: 'HUB DENPASAR SELATAN',
+    joinDate: '2024-07-26',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334407',
+    bankName: 'Bank BPD Bali',
+    registeredRecipientName: 'Tiara Dewi',
+    avatarUrl: 'https://placehold.co/100x100.png?text=TD',
+    password: 'password123'
+  },
+  {
+    id: 'SURYAJBT01',
+    fullName: 'Surya Adi',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Bekasi Regency',
+    workLocation: 'HUB CIKARANG',
+    joinDate: '2024-07-27',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334408',
+    bankName: 'Bank BCA',
+    registeredRecipientName: 'Surya Adi',
+    avatarUrl: 'https://placehold.co/100x100.png?text=SA',
+    password: 'password123'
+  },
+  {
+    id: 'RIZKYJBR02',
+    fullName: 'Rizky Amelia',
+    wilayah: 'Jawa Barat',
+    area: 'Cirebon Kota',
+    workLocation: 'HUB CIREBON KOTA',
+    joinDate: '2024-07-28',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334409',
+    bankName: 'Bank BJB',
+    registeredRecipientName: 'Rizky Amelia',
+    avatarUrl: 'https://placehold.co/100x100.png?text=RA',
+    password: 'password123'
+  },
+  {
+    id: 'QISTISMG01',
+    fullName: 'Qisti Nabila',
+    wilayah: 'Jawa Tengah & DIY',
+    area: 'Solo Raya',
+    workLocation: 'HUB SOLO JEBRES',
+    joinDate: '2024-07-29',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334410',
+    bankName: 'Bank Jateng',
+    registeredRecipientName: 'Qisti Nabila',
+    avatarUrl: 'https://placehold.co/100x100.png?text=QN',
+    password: 'password123'
+  },
+  {
+    id: 'PanduJTM02',
+    fullName: 'Pandu Wijaya',
+    wilayah: 'Jawa Timur & Bali Nusra',
+    area: 'Sidoarjo',
+    workLocation: 'HUB SIDOARJO KOTA',
+    joinDate: '2024-07-30',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Non-Aktif',
+    accountNumber: '1122334411',
+    bankName: 'Bank Mandiri',
+    registeredRecipientName: 'Pandu Wijaya',
+    avatarUrl: 'https://placehold.co/100x100.png?text=PW',
+    password: 'password123'
+  },
+  {
+    id: 'OLIVIASUM02',
+    fullName: 'Olivia RAHMA',
+    wilayah: 'Sumatera Utara',
+    area: 'Deli Serdang',
+    workLocation: 'HUB LUBUK PAKAM',
+    joinDate: '2024-07-31',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334412',
+    bankName: 'Bank Sumut',
+    registeredRecipientName: 'Olivia RAHMA',
+    avatarUrl: 'https://placehold.co/100x100.png?text=OR',
+    password: 'password123'
+  },
+  {
+    id: 'NOVANKAL02',
+    fullName: 'Novan Syah',
+    wilayah: 'Kalimantan Barat',
+    area: 'Pontianak',
+    workLocation: 'HUB PONTIANAK KOTA',
+    joinDate: '2024-08-01',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334413',
+    bankName: 'Bank Kalbar',
+    registeredRecipientName: 'Novan Syah',
+    avatarUrl: 'https://placehold.co/100x100.png?text=NS',
+    password: 'password123'
+  },
+  {
+    id: 'MIAJBT02',
+    fullName: 'Mia Kusuma',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Depok Kota',
+    workLocation: 'HUB DEPOK BARU',
+    joinDate: '2024-08-02',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334414',
+    bankName: 'Bank BRI',
+    registeredRecipientName: 'Mia Kusuma',
+    avatarUrl: 'https://placehold.co/100x100.png?text=MK',
+    password: 'password123'
+  },
+  {
+    id: 'LILISJBR03',
+    fullName: 'Lilis Suryani',
+    wilayah: 'Jawa Barat',
+    area: 'Tasikmalaya',
+    workLocation: 'HUB TASIKMALAYA KOTA',
+    joinDate: '2024-08-03',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334415',
+    bankName: 'Bank BNI',
+    registeredRecipientName: 'Lilis Suryani',
+    avatarUrl: 'https://placehold.co/100x100.png?text=LS',
+    password: 'password123'
+  },
+  {
+    id: 'KEVINSUL02',
+    fullName: 'Kevin Sanjaya',
+    wilayah: 'Sulawesi Utara',
+    area: 'Manado',
+    workLocation: 'HUB MANADO KOTA',
+    joinDate: '2024-08-04',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334416',
+    bankName: 'Bank SulutGo',
+    registeredRecipientName: 'Kevin Sanjaya',
+    avatarUrl: 'https://placehold.co/100x100.png?text=KS',
+    password: 'password123'
+  },
+  {
+    id: 'JASMINEJTM03',
+    fullName: 'Jasmine Putri',
+    wilayah: 'Jawa Timur & Bali Nusra',
+    area: 'Gresik',
+    workLocation: 'HUB GRESIK KOTA',
+    joinDate: '2024-08-05',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334417',
+    bankName: 'Bank Jatim',
+    registeredRecipientName: 'Jasmine Putri',
+    avatarUrl: 'https://placehold.co/100x100.png?text=JP',
+    password: 'password123'
+  },
+  {
+    id: 'IQBALSMG02',
+    fullName: 'Iqbal Ramadhan',
+    wilayah: 'Jawa Tengah & DIY',
+    area: 'Pekalongan',
+    workLocation: 'HUB PEKALONGAN KOTA',
+    joinDate: '2024-08-06',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334418',
+    bankName: 'Bank Jateng',
+    registeredRecipientName: 'Iqbal Ramadhan',
+    avatarUrl: 'https://placehold.co/100x100.png?text=IR',
+    password: 'password123'
+  },
+  {
+    id: 'HANASUM03',
+    fullName: 'Hana Lestari',
+    wilayah: 'Sumatera Barat',
+    area: 'Padang',
+    workLocation: 'HUB PADANG KOTA',
+    joinDate: '2024-08-07',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334419',
+    bankName: 'Bank Nagari',
+    registeredRecipientName: 'Hana Lestari',
+    avatarUrl: 'https://placehold.co/100x100.png?text=HL',
+    password: 'password123'
+  },
+  {
+    id: 'GILANGKAL03',
+    fullName: 'Gilang Dirga',
+    wilayah: 'Kalimantan Selatan',
+    area: 'Banjarmasin',
+    workLocation: 'HUB BANJARMASIN KOTA',
+    joinDate: '2024-08-08',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334420',
+    bankName: 'Bank Kalsel',
+    registeredRecipientName: 'Gilang Dirga',
+    avatarUrl: 'https://placehold.co/100x100.png?text=GD',
+    password: 'password123'
   }
+  // End of 20 new dummy users
 ];
 
 export const mockPackages: PackageItem[] = [
@@ -465,25 +767,29 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
 };
 
 // For Admin Reports Page
-export const mockAdminOverallStats: AdminOverallStats = { // This will be dynamically calculated in the component now.
-  totalActiveCouriers: 0,
-  totalPackagesToday: 0,
-  totalDeliveredToday: 0,
-  totalPendingReturnToday: 0,
-  overallSuccessRateToday: 0,
-};
+// This will be dynamically calculated in the component now.
+// export const mockAdminOverallStats: AdminOverallStats = {
+//   totalActiveCouriers: mockUsers.filter(u => u.contractStatus === 'Aktif').length,
+//   totalPackagesToday: 0, // Will be sum of mockAdminCourierSummaries
+//   totalDeliveredToday: 0, // Will be sum of mockAdminCourierSummaries
+//   totalPendingReturnToday: 0, // Will be sum of mockAdminCourierSummaries
+//   overallSuccessRateToday: 0, // Will be calculated
+// };
 
 export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.map((user, index) => {
-  const carried = 20 + (index * 5) % 15 + Math.floor(Math.random() * 5); // e.g. 20-29
-  const deliveredSeed = Math.random();
+  // Make 'carried' deterministic to avoid hydration issues
+  const carried = 20 + (index * 5) % 15 + (index % 5); // e.g. 20-39
+  
+  const deliveredSeed = (index % 11) / 10; // Use index for a pseudo-random but deterministic seed (0 to 1)
   const delivered = Math.floor(carried * (0.70 + deliveredSeed * 0.25)); // 70-95% success
   const failed = carried - delivered;
+  
   let status: AdminCourierDailySummary['status'] = 'Belum Ada Laporan';
   if (user.contractStatus === 'Aktif') {
-    const statusSeed = Math.random();
-    if (statusSeed < 0.6) status = 'Selesai';
-    else if (statusSeed < 0.9) status = 'Aktif Mengantar';
-    else status = 'Belum Ada Laporan';
+    const statusSeed = (index % 10); // Use index for deterministic status
+    if (statusSeed < 6) status = 'Selesai'; // 60%
+    else if (statusSeed < 9) status = 'Aktif Mengantar'; // 30%
+    else status = 'Belum Ada Laporan'; // 10%
   } else {
     status = 'Tidak Aktif';
   }
@@ -497,15 +803,17 @@ export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.m
     packagesCarried: carried,
     packagesDelivered: delivered,
     packagesFailedOrReturned: failed,
-    successRate: carried > 0 ? (delivered / carried) * 100 : 0,
+    successRate: carried > 0 ? (delivered / (delivered + failed)) * 100 : 0, // success based on attempted
     status: status,
   };
 });
 
 export const mockAdminDeliveryTimeData: AdminDeliveryTimeDataPoint[] = Array.from({ length: 10 }, (_, i) => {
   const hour = 9 + i; // 9 AM to 6 PM (18:00)
+  // Make 'delivered' deterministic
+  const deliveredPackages = 5 + ((hour + i*2) % 25); // Random-like but deterministic
   return {
     hour: `${String(hour).padStart(2, '0')}:00`,
-    delivered: 5 + Math.floor(Math.random() * 20), // Random deliveries per hour
+    delivered: deliveredPackages,
   };
 });
