@@ -54,34 +54,35 @@ export default function DashboardPage() {
   }, []);
 
  useEffect(() => {
-    let activeStream: MediaStream | null = null;
-    let activeCodeReader: BrowserMultiFormatReader | null = null;
-    let activeScannerControls: IScannerControls | null = null;
+    // These variables will hold the active instances for the current scanning session
+    let currentStream: MediaStream | null = null;
+    let currentReader: BrowserMultiFormatReader | null = null;
+    let currentControls: IScannerControls | null = null;
 
     const stopScanAndCamera = () => {
       console.log('Attempting to stop scan and camera...');
-      if (activeScannerControls) {
+      if (currentControls) {
         console.log('Stopping active scanner controls.');
         try {
-          activeScannerControls.stop();
+          currentControls.stop();
         } catch (e) {
             console.error('Error stopping scanner controls:', e);
         }
-        activeScannerControls = null;
+        currentControls = null;
       }
-      if (activeCodeReader) {
+      if (currentReader) {
         console.log('Resetting active code reader.');
         try {
-          activeCodeReader.reset();
+          currentReader.reset();
         } catch (e) {
           console.error('Error resetting code reader during stop:', e);
         }
-        activeCodeReader = null;
+        currentReader = null;
       }
-      if (activeStream) {
+      if (currentStream) {
         console.log('Stopping active camera stream tracks.');
-        activeStream.getTracks().forEach(track => track.stop());
-        activeStream = null;
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
@@ -90,9 +91,12 @@ export default function DashboardPage() {
     };
 
     const initializeAndStartScanner = async () => {
-      if (!isScanDialogOpen) return;
-
-      setHasCameraPermission(null);
+      // Reset states for this attempt
+      currentStream = null;
+      currentReader = null;
+      currentControls = null;
+      setHasCameraPermission(null); // Indicate processing
+      
       console.log('Scan dialog opened. Initializing scanner...');
 
       try {
@@ -106,11 +110,11 @@ export default function DashboardPage() {
           return;
         }
         
-        stopScanAndCamera(); // Clean up any previous instances
+        stopScanAndCamera(); // Ensure previous session is fully cleaned up
 
         try {
           console.log('Requesting camera permission...');
-          activeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+          currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
           console.log('Camera permission granted and stream obtained.');
         } catch (permError: any) {
           console.error('Error obtaining camera stream:', permError);
@@ -125,8 +129,8 @@ export default function DashboardPage() {
           return;
         }
 
-        if (!activeStream) {
-          console.error('Failed to obtain camera stream, activeStream is null.');
+        if (!currentStream) {
+          console.error('Failed to obtain camera stream, currentStream is null.');
           setHasCameraPermission(false);
           toast({ title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera setelah izin.' });
           return;
@@ -142,7 +146,7 @@ export default function DashboardPage() {
           return;
         }
 
-        videoRef.current.srcObject = activeStream;
+        videoRef.current.srcObject = currentStream;
 
         try {
           await videoRef.current.play();
@@ -162,20 +166,20 @@ export default function DashboardPage() {
             toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen pemindai tidak ditemukan.' });
             return;
         }
-        console.log('BrowserMultiFormatReader constructor:', zxing.BrowserMultiFormatReader);
-        console.log('zxing.BarcodeFormat:', zxing.BarcodeFormat);
-        console.log('zxing.DecodeHintType:', zxing.DecodeHintType);
+        console.log('BrowserMultiFormatReader constructor reference:', zxing.BrowserMultiFormatReader);
+        console.log('zxing.BarcodeFormat available:', !!zxing.BarcodeFormat);
+        console.log('zxing.DecodeHintType available:', !!zxing.DecodeHintType);
 
 
         try {
-          // Try instantiating without hints first
-          activeCodeReader = new zxing.BrowserMultiFormatReader();
-          console.log('BrowserMultiFormatReader instance (no hints) created:', activeCodeReader);
+          console.log('Attempting to instantiate BrowserMultiFormatReader (no hints)...');
+          currentReader = new zxing.BrowserMultiFormatReader();
+          console.log('BrowserMultiFormatReader instance (no hints) created:', currentReader);
 
-          // If successful without hints, then try with hints
-          if (activeCodeReader && typeof activeCodeReader.decodeFromContinuously === 'function') {
+          if (currentReader && typeof currentReader.decodeFromContinuously === 'function') {
             if (zxing.BarcodeFormat && zxing.DecodeHintType) {
-                activeCodeReader.reset(); // Reset before re-instantiating with hints
+                console.log('Attempting to re-instantiate BrowserMultiFormatReader with hints...');
+                currentReader.reset(); 
                 const hints = new Map();
                 const formats = [
                     zxing.BarcodeFormat.QR_CODE, zxing.BarcodeFormat.CODE_128, 
@@ -183,44 +187,36 @@ export default function DashboardPage() {
                     zxing.BarcodeFormat.DATA_MATRIX
                 ];
                 hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, formats);
-                activeCodeReader = new zxing.BrowserMultiFormatReader(hints);
-                console.log('BrowserMultiFormatReader instance (with hints) re-created:', activeCodeReader);
+                currentReader = new zxing.BrowserMultiFormatReader(hints);
+                console.log('BrowserMultiFormatReader instance (with hints) re-created:', currentReader);
             } else {
-                console.warn('BarcodeFormat or DecodeHintType not available, proceeding without hints.');
+                console.warn('BarcodeFormat or DecodeHintType not available, proceeding with no-hints reader.');
             }
+          } else {
+             console.error('Initial BrowserMultiFormatReader (no hints) instance is invalid or missing decodeFromContinuously. Instance:', currentReader);
+             // No need to try with hints if the base constructor failed.
           }
         } catch (readerError) {
-          console.error('Error instantiating BrowserMultiFormatReader:', readerError);
-          stopScanAndCamera();
-          setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal membuat instance pemindai barcode (constructor error).' });
-          return;
+          console.error('Critical error during BrowserMultiFormatReader instantiation:', readerError);
+          currentReader = null; // Ensure it's null if constructor threw
         }
         
-        if (!activeCodeReader || typeof activeCodeReader.decodeFromContinuously !== 'function') {
-          console.error('Failed to create a valid Zxing reader instance or method not found. Instance:', activeCodeReader);
+        if (!currentReader || typeof currentReader.decodeFromContinuously !== 'function') {
+          console.error('Failed to create a valid Zxing reader instance or method not found. Final instance state:', currentReader);
           stopScanAndCamera();
           setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal membuat instance pemindai barcode.' });
+          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal menginisialisasi pemindai barcode. Silakan coba lagi.' });
           return;
         }
 
         console.log('Zxing reader initialized. Starting continuous decode...');
-        // Ensure videoRef.current is passed as the first argument to decodeFromContinuously
-        // The API is decodeFromContinuously(element, stream, callback) or decodeFromContinuously(deviceId, videoElement, callback)
-        // If we don't have a specific deviceId, we can pass `undefined` or the video element itself if the stream is already set on it.
-        // The simpler API form for `BrowserMultiFormatReader` is often just `decodeFromContinuously(videoElement, callback)` after stream is set.
-        // Let's use `decodeFromVideoElement` if available, or stick to the common `decodeFromContinuously` structure.
-        // For `BrowserMultiFormatReader` the common call if stream is already on video:
-        // `activeCodeReader.decodeFromContinuously(videoRef.current, (result, error) => { ... });`
-        // OR using the deviceId version:
-        // `activeCodeReader.decodeFromContinuously(undefined, videoRef.current, (result, error) => { ... });`
-        // Let's try the simpler one first if videoRef.current.srcObject is already set with activeStream.
-        
-        activeScannerControls = activeCodeReader.decodeFromContinuously(
-            videoRef.current, // Using video element directly if srcObject is set
+        currentControls = currentReader.decodeFromContinuously(
+            videoRef.current, 
             (result, error) => {
-                if (!activeScannerControls) return; // Scanner was stopped
+                if (!currentControls) { // Check if scanner was stopped (currentControls nulled by stopScanAndCamera)
+                  console.log('Scan callback received after scanner was stopped. Ignoring.');
+                  return; 
+                }
 
                 if (result) {
                     console.log('Barcode scanned:', result.getText());
@@ -232,7 +228,7 @@ export default function DashboardPage() {
                 }
             }
         );
-        console.log('Continuous decode started successfully.');
+        console.log('Continuous decode started successfully. Controls:', currentControls);
 
       } catch (libraryOrInitError) {
         console.error("General error during scanner initialization process:", libraryOrInitError);
@@ -252,7 +248,7 @@ export default function DashboardPage() {
       console.log('useEffect cleanup: isScanDialogOpen changed or component unmounted.');
       stopScanAndCamera();
     };
-  }, [isScanDialogOpen]);
+  }, [isScanDialogOpen]); // Only re-run when dialog state changes
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
