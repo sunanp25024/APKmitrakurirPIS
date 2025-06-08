@@ -6,39 +6,85 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from '@/components/ui/button';
-import { format, subDays, addDays } from "date-fns";
+import { format, subDays, addDays, isToday } from "date-fns";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Calendar as CalendarIcon, TrendingUp, Package, CheckCircle, Clock, Percent, ArrowLeft, ArrowRight, PackageX } from 'lucide-react';
-import type { DailyPerformanceData } from '@/lib/mockData'; // Import the type
-import { generateDailyPerformanceEntry } from '@/lib/mockData'; // Import the generator
+import { Calendar as CalendarIcon, TrendingUp, Package, CheckCircle, Clock, Percent, PackageX } from 'lucide-react'; // Removed ArrowLeft, ArrowRight
+import type { DailyPerformanceData, AdminCourierDailySummary } from '@/types'; 
+import { generateDailyPerformanceEntry } from '@/lib/mockData';
+import { useAuth } from '@/contexts/AuthContext'; // Added useAuth
 
-const today = new Date();
-// Regenerate initialPerformanceData with the new structure
-const initialPerformanceData: DailyPerformanceData[] = Array.from({ length: 30 }, (_, i) => generateDailyPerformanceEntry(subDays(today, i))).reverse();
-
-const COLORS_PERFORMANCE = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))']; // Added chart-5 for red
+const todayInitial = new Date();
+// initialPerformanceData will be set in useEffect
+const COLORS_PERFORMANCE = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
 export default function PerformancePage() {
+  const { user } = useAuth(); // Get current user
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
-  // Use the correctly typed performanceData
-  const [performanceData, setPerformanceData] = useState<DailyPerformanceData[]>(initialPerformanceData);
+  const [performanceData, setPerformanceData] = useState<DailyPerformanceData[]>([]);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Simulate fetching new data if selectedDate changes (example)
   useEffect(() => {
-    // In a real app, you might fetch data for the selected month or week here
-    // For now, we just use the initial 30-day mock data
-  }, [selectedDate]);
+    setIsMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
+    const todayFormatted = format(new Date(), "yyyy-MM-dd");
+    let dataForTodayFromStorage: DailyPerformanceData | undefined = undefined;
+
+    if (user) {
+        try {
+            const allStoredReportsRaw = localStorage.getItem('spxCourierDailySummaries');
+            if (allStoredReportsRaw) {
+                const allStoredReports = JSON.parse(allStoredReportsRaw);
+                const dailyReportsForToday = allStoredReports[todayFormatted];
+                if (dailyReportsForToday && dailyReportsForToday[user.id]) {
+                    const summary: AdminCourierDailySummary = dailyReportsForToday[user.id];
+                    dataForTodayFromStorage = {
+                        date: todayFormatted,
+                        totalPackages: summary.packagesCarried,
+                        deliveredPackages: summary.packagesDelivered,
+                        undeliveredOrPendingPackages: summary.packagesFailedOrReturned,
+                        avgDeliveryTime: 90, // Mock, as this isn't in summary from dashboard
+                        attendance: 'Present', // Mock, as this isn't in summary from dashboard
+                        dataFinalizedTimestamp: summary.lastActivityTimestamp,
+                    };
+                }
+            }
+        } catch (e) {
+            console.error("Error reading today's summary from localStorage for performance page", e);
+        }
+    }
+
+    const generatedPerformanceData: DailyPerformanceData[] = Array.from({ length: 30 }, (_, i) => {
+        const dayToGenerateFor = subDays(new Date(), i);
+        // If it's today and we have data from storage, use that
+        if (format(dayToGenerateFor, "yyyy-MM-dd") === todayFormatted && dataForTodayFromStorage) {
+            return dataForTodayFromStorage;
+        }
+        // Otherwise, generate mock data
+        return generateDailyPerformanceEntry(dayToGenerateFor);
+    }).reverse(); // Keep the reverse to have newest data last for overallStats if needed
+
+    setPerformanceData(generatedPerformanceData);
+
+  }, [user, isMounted]); // Re-run if user changes or component mounts
 
 
   const overallStats = useMemo(() => {
-    const total = performanceData.reduce((sum, day) => sum + day.totalPackages, 0);
-    const delivered = performanceData.reduce((sum, day) => sum + day.deliveredPackages, 0);
-    const totalDeliveryTime = performanceData.reduce((sum, day) => sum + day.avgDeliveryTime * day.deliveredPackages, 0);
-    const totalDeliveredForAvgTime = performanceData.reduce((sum, day) => sum + (day.deliveredPackages > 0 ? day.deliveredPackages : 0), 0);
+    if (!isMounted || performanceData.length === 0) return {
+        allPackages: 0, allDelivered: 0, successRate: 0, avgDeliveryTime: 0, attendancePresent: 0, attendanceRate: 0
+    };
+    const relevantData = performanceData; // Use all 30 days for overall period stats
+    const total = relevantData.reduce((sum, day) => sum + day.totalPackages, 0);
+    const delivered = relevantData.reduce((sum, day) => sum + day.deliveredPackages, 0);
+    const totalDeliveryTime = relevantData.reduce((sum, day) => sum + day.avgDeliveryTime * day.deliveredPackages, 0);
+    const totalDeliveredForAvgTime = relevantData.reduce((sum, day) => sum + (day.deliveredPackages > 0 ? day.deliveredPackages : 0), 0);
     
-    const presentDays = performanceData.filter(d => d.attendance === 'Present').length;
-    const onTimeOrLateDays = performanceData.filter(d => d.attendance === 'Present' || d.attendance === 'Late').length;
+    const presentDays = relevantData.filter(d => d.attendance === 'Present').length;
+    const onTimeOrLateDays = relevantData.filter(d => d.attendance === 'Present' || d.attendance === 'Late').length;
 
     return {
       allPackages: total,
@@ -46,36 +92,52 @@ export default function PerformancePage() {
       successRate: total > 0 ? (delivered / total) * 100 : 0,
       avgDeliveryTime: totalDeliveredForAvgTime > 0 ? totalDeliveryTime / totalDeliveredForAvgTime : 0,
       attendancePresent: presentDays,
-      attendanceRate: performanceData.length > 0 ? (onTimeOrLateDays / performanceData.length) * 100 : 0,
+      attendanceRate: relevantData.length > 0 ? (onTimeOrLateDays / relevantData.length) * 100 : 0,
     };
-  }, [performanceData]);
+  }, [performanceData, isMounted]);
 
   const weeklyChartData = useMemo(() => {
-    const last7Days = performanceData.slice(-7); // Ensure we have enough data, or adjust slice
+    if (!isMounted || performanceData.length === 0) return [];
+    // Ensure data is sorted by date ascending for the chart if it's not already
+    const sortedPerformanceData = [...performanceData].sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const last7Days = sortedPerformanceData.slice(-7);
     return last7Days.map(day => ({
       date: format(new Date(day.date), "dd/MM"),
       Terkirim: day.deliveredPackages,
       'Tidak Terkirim/Pending': day.undeliveredOrPendingPackages,
     }));
-  }, [performanceData]);
+  }, [performanceData, isMounted]);
 
   const selectedDayFullData = useMemo(() => {
-    return performanceData.find(d => d.date === (selectedDate ? format(selectedDate, "yyyy-MM-dd") : ''));
-  }, [performanceData, selectedDate]);
+    if (!isMounted || !selectedDate) return undefined;
+    const formattedSelectedDate = format(selectedDate, "yyyy-MM-dd");
+    return performanceData.find(d => d.date === formattedSelectedDate);
+  }, [performanceData, selectedDate, isMounted]);
 
   const dailyChartData = useMemo(() => {
-    if (!selectedDayFullData || selectedDayFullData.totalPackages === 0) return [{ name: 'Kosong', value: 1, percent: 100 }];
-    return [
-      { name: 'Terkirim', value: selectedDayFullData.deliveredPackages, percent: (selectedDayFullData.deliveredPackages / selectedDayFullData.totalPackages) * 100 },
-      { name: 'Tidak Terkirim/Pending', value: selectedDayFullData.undeliveredOrPendingPackages, percent: (selectedDayFullData.undeliveredOrPendingPackages / selectedDayFullData.totalPackages) * 100 },
+    if (!isMounted || !selectedDayFullData || selectedDayFullData.totalPackages === 0) return [{ name: 'Kosong', value: 1, percent: 100, fill: COLORS_PERFORMANCE[4] }];
+    
+    const data = [
+      { name: 'Terkirim', value: selectedDayFullData.deliveredPackages, percent: (selectedDayFullData.deliveredPackages / selectedDayFullData.totalPackages) * 100, fill: COLORS_PERFORMANCE[0] },
+      { name: 'Tidak Terkirim/Pending', value: selectedDayFullData.undeliveredOrPendingPackages, percent: (selectedDayFullData.undeliveredOrPendingPackages / selectedDayFullData.totalPackages) * 100, fill: COLORS_PERFORMANCE[1] },
     ].filter(item => item.value > 0);
-  }, [selectedDayFullData]);
+
+    if (data.length === 0) { // Should not happen if totalPackages > 0, but as a fallback
+        return [{ name: 'Kosong', value: 1, percent: 100, fill: COLORS_PERFORMANCE[4] }];
+    }
+    return data;
+
+  }, [selectedDayFullData, isMounted]);
 
 
   const handleDateChange = (date: Date | undefined) => {
     setSelectedDate(date);
     setShowCalendar(false); 
   };
+
+  if (!isMounted) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -121,17 +183,21 @@ export default function PerformancePage() {
             <CardDescription>Jumlah paket dikirim vs tidak terkirim/pending selama 7 hari terakhir.</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={weeklyChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="Terkirim" stroke="hsl(var(--chart-1))" strokeWidth={2} activeDot={{ r: 6 }} />
-                <Line type="monotone" dataKey="Tidak Terkirim/Pending" stroke="hsl(var(--chart-5))" strokeWidth={2} activeDot={{ r: 6 }} />
-              </LineChart>
-            </ResponsiveContainer>
+            {weeklyChartData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={weeklyChartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis allowDecimals={false} />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="Terkirim" stroke="hsl(var(--chart-1))" strokeWidth={2} activeDot={{ r: 6 }} />
+                  <Line type="monotone" dataKey="Tidak Terkirim/Pending" stroke="hsl(var(--chart-5))" strokeWidth={2} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-center text-muted-foreground h-[300px] flex items-center justify-center">Data mingguan belum cukup.</p>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -150,12 +216,12 @@ export default function PerformancePage() {
             {selectedDayFullData && dailyChartData[0].name !== 'Kosong' ? (
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie data={dailyChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false} label={({ name, value, percent }) => `${name}: ${value} (${(percent).toFixed(0)}%)`}>
+                  <Pie data={dailyChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} labelLine={false} label={({ name, value, percent }) => `${name}: ${value} (${(percent ?? 0).toFixed(0)}%)`}>
                     {dailyChartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS_PERFORMANCE[index % COLORS_PERFORMANCE.length]} />
+                      <Cell key={`cell-${index}`} fill={entry.fill || COLORS_PERFORMANCE[index % COLORS_PERFORMANCE.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value, name, props) => [`${value} (${(props.payload.percent).toFixed(1)}%)`, name]} />
+                  <Tooltip formatter={(value, name, props) => [`${value} (${(props.payload.percent ?? 0).toFixed(1)}%)`, name]} />
                   <Legend />
                 </PieChart>
               </ResponsiveContainer>
@@ -186,4 +252,3 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value }) => (
     </CardContent>
   </Card>
 );
-
