@@ -17,12 +17,12 @@ export default function AdminLayout({
   const pathname = usePathname();
 
   const navItems = [
+    { href: '/admin/reports', label: 'Laporan & Dashboard', icon: BarChart3 },
     { href: '/admin/couriers', label: 'Manajemen Kurir', icon: Users },
-    // { href: '/admin/reports', label: 'Laporan Harian', icon: BarChart3 }, // Placeholder for Tahap 2
   ];
 
   const AdminBrand = () => (
-    <div className="flex items-center gap-2 px-4 py-5 border-b h-16"> {/* Adjusted px and h-16 for consistency */}
+    <div className="flex items-center gap-2 px-4 py-5 border-b h-16">
       <Briefcase className="h-6 w-6 text-primary" />
       <h1 className="text-lg font-semibold text-primary">Admin SPX Kurir</h1>
     </div>
@@ -59,9 +59,9 @@ export default function AdminLayout({
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex flex-col sm:pl-60"> {/* Removed sm:gap-4 and sm:py-0 for cleaner structure */}
+      <div className="flex flex-col sm:pl-60">
         {/* Mobile Header & Sidebar Trigger */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:border-0 sm:bg-transparent sm:px-6 sm:hidden"> {/* Hide on sm and up, only for mobile */}
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:border-0 sm:bg-transparent sm:px-6 sm:hidden">
             <Sheet>
               <SheetTrigger asChild>
                 <Button size="icon" variant="outline">
@@ -96,11 +96,11 @@ export default function AdminLayout({
                 </div>
               </SheetContent>
             </Sheet>
-           <div className="font-semibold text-primary text-lg">Admin SPX Kurir</div> {/* Mobile title next to toggle */}
+           <div className="font-semibold text-primary text-lg">Admin SPX Kurir</div>
         </header>
-        {/* Desktop Header (can be empty or have specific admin actions like profile) */}
+        {/* Desktop Header */}
         <header className="sticky top-0 z-30 hidden h-16 items-center justify-end border-b bg-background px-4 sm:flex sm:px-6">
-             {/* Placeholder for admin-specific header content on desktop, e.g., admin profile */}
+             {/* Placeholder for admin-specific header content on desktop */}
         </header>
         <main className="flex-1 items-start gap-4 p-4 sm:px-6 sm:py-6 md:gap-8">
           {children}
@@ -109,4 +109,3 @@ export default function AdminLayout({
     </div>
   );
 }
-

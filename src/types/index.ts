@@ -1,3 +1,4 @@
+
 export interface User {
   id: string; // ID Mitra Kurir
   fullName: string; // Nama Lengkap Mitra Kurir
@@ -35,4 +36,39 @@ export interface AttendanceEntry {
   checkInTime?: string;
   checkOutTime?: string;
   status: 'On Time' | 'Late' | 'Absent';
+}
+
+// For performance page (individual courier)
+export interface DailyPerformanceData {
+  date: string;
+  totalPackages: number;
+  deliveredPackages: number;
+  undeliveredOrPendingPackages: number;
+  avgDeliveryTime: number; // in minutes
+  attendance: 'Present' | 'Late' | 'Absent';
+}
+
+
+// For Admin Reports Page
+export interface AdminOverallStats {
+  totalActiveCouriers: number;
+  totalPackagesToday: number;
+  totalDeliveredToday: number;
+  totalPendingReturnToday: number; // Packages that are 'Tidak Terkirim', 'Pending', or 'Dikembalikan'
+  overallSuccessRateToday: number; // Percentage based on (delivered / (delivered + pendingReturn))
+}
+
+export interface AdminCourierDailySummary {
+  courierId: string;
+  courierName: string;
+  packagesCarried: number;
+  packagesDelivered: number;
+  packagesFailedOrReturned: number;
+  successRate: number; // percentage
+  status: 'Aktif Mengantar' | 'Selesai' | 'Belum Ada Laporan';
+}
+
+export interface AdminDeliveryTimeDataPoint {
+  hour: string; // e.g., "09:00", "10:00"
+  delivered: number;
 }

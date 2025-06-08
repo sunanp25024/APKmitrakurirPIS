@@ -1,5 +1,5 @@
 
-import type { User, PackageItem, AttendanceEntry } from '@/types';
+import type { User, PackageItem, AttendanceEntry, DailyPerformanceData, AdminOverallStats, AdminCourierDailySummary, AdminDeliveryTimeDataPoint } from '@/types';
 import { format, subDays } from "date-fns";
 
 
@@ -52,16 +52,7 @@ export const motivationalQuotes: string[] = [
 ];
 
 
-// For performance page
-export interface DailyPerformanceData {
-  date: string;
-  totalPackages: number;
-  deliveredPackages: number;
-  undeliveredOrPendingPackages: number; // Added this
-  avgDeliveryTime: number; // in minutes
-  attendance: 'Present' | 'Late' | 'Absent'; // More specific
-}
-
+// For performance page (individual courier)
 export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData => {
   const daySeed = date.getDate() + date.getMonth() * 30; // Make seed vary more
   const total = 15 + (daySeed % 10) - 2; // 13 to 23
@@ -77,3 +68,35 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
     attendance: (daySeed % 10) < 7 ? 'Present' : (daySeed % 10) < 9 ? 'Late' : 'Absent',
   };
 };
+
+// For Admin Reports Page
+export const mockAdminOverallStats: AdminOverallStats = {
+  totalActiveCouriers: mockUsers.length, // Assuming all mock users are active for simplicity
+  totalPackagesToday: 150,
+  totalDeliveredToday: 120,
+  totalPendingReturnToday: 25, // 150 - 120 delivered - 5 still in process
+  overallSuccessRateToday: (120 / (120 + 25)) * 100, // Based on resolved packages
+};
+
+export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.map((user, index) => {
+  const carried = 20 + (index * 5) % 15; // e.g. 20, 25, 30, 20, 25...
+  const delivered = Math.floor(carried * (0.75 + (index % 3) * 0.05)); // 75-85% success
+  const failed = carried - delivered;
+  return {
+    courierId: user.id,
+    courierName: user.fullName,
+    packagesCarried: carried,
+    packagesDelivered: delivered,
+    packagesFailedOrReturned: failed,
+    successRate: carried > 0 ? (delivered / carried) * 100 : 0,
+    status: index % 3 === 0 ? 'Selesai' : index % 3 === 1 ? 'Aktif Mengantar' : 'Belum Ada Laporan',
+  };
+});
+
+export const mockAdminDeliveryTimeData: AdminDeliveryTimeDataPoint[] = Array.from({ length: 10 }, (_, i) => {
+  const hour = 9 + i; // 9 AM to 6 PM (18:00)
+  return {
+    hour: `${String(hour).padStart(2, '0')}:00`,
+    delivered: 5 + Math.floor(Math.random() * 20), // Random deliveries per hour
+  };
+});
