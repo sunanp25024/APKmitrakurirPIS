@@ -2,16 +2,16 @@
     "use client";
 
     import type { User as AppUserType } from '@/types'; // Renamed to avoid conflict with Firebase User
-    import { mockUsers as fallbackMockUsers } from '@/lib/mockData';
+    // import { mockUsers as fallbackMockUsers } from '@/lib/mockData'; // No longer primary source
     import { useRouter } from 'next/navigation';
     import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
     import { 
-      Auth, 
+      // Auth, // Not directly used as type for auth instance
       User as FirebaseUser, 
       signInWithEmailAndPassword, 
       signOut, 
       onAuthStateChanged,
-      createUserWithEmailAndPassword // For admin creating users
+      // createUserWithEmailAndPassword // For admin creating users - keep for future
     } from 'firebase/auth';
     import { doc, getDoc, setDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
     import { auth, db } from '@/lib/firebase'; // Import Firebase instances
@@ -35,40 +35,39 @@
       login: (idOrEmail: string, pass: string) => Promise<AuthLoginResponse>;
       logout: () => Promise<void>;
       isLoading: boolean;
-      // getAvailableUsers will be deprecated or changed to fetch from Firestore
     }
 
     const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-    const ADMIN_SESSION_KEY = 'adminSession_firebase'; // Updated key
-    // COURIER_SESSION_KEY is no longer needed as Firebase handles session persistence
+    const ADMIN_SESSION_KEY = 'adminSession_firebase';
 
     export const AuthProvider = ({ children }: { children: ReactNode }) => {
-      const [user, setUser] = useState<AppUserType | null>(null); // Our app's user data
-      const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null); // Firebase auth user
+      const [user, setUser] = useState<AppUserType | null>(null);
+      const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
       const [adminSession, setAdminSession] = useState<AdminSession | null>(null);
       const [isLoading, setIsLoading] = useState(true);
       const router = useRouter();
 
-      // Listen to Firebase auth state changes
       useEffect(() => {
+        if (!auth || !db) {
+          console.error("Firebase auth or db not initialized. AuthProvider cannot function.");
+          setIsLoading(false);
+          return;
+        }
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
           setIsLoading(true);
           if (fbUser) {
             setFirebaseUser(fbUser);
-            // Check if it's an admin session from localStorage first
             const storedAdminSession = localStorage.getItem(ADMIN_SESSION_KEY);
             if (storedAdminSession) {
                 const sessionData: AdminSession = JSON.parse(storedAdminSession);
-                // Validate if fbUser.uid matches the stored one if exists
                 if (sessionData.firebaseUid && sessionData.firebaseUid === fbUser.uid) {
                     setAdminSession(sessionData);
-                    setUser(null); // Admin is not a courier user
+                    setUser(null); 
                     setIsLoading(false);
-                    // router.push('/admin/reports'); // Redirect if on login page
+                    // Avoid automatic redirect from here to prevent loops if on admin pages
                     return;
                 } else if (!sessionData.firebaseUid && sessionData.id.toUpperCase() === fbUser.email?.split('@')[0].toUpperCase()) {
-                    // Legacy admin login (no UID stored yet), update it
                     const updatedSession = {...sessionData, firebaseUid: fbUser.uid};
                     setAdminSession(updatedSession);
                     localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(updatedSession));
@@ -78,25 +77,29 @@
                 }
             }
 
-            // If not an admin session, fetch courier user data from Firestore
             const userDocRef = doc(db, "users", fbUser.uid);
-            const userDocSnap = await getDoc(userDocRef);
-            if (userDocSnap.exists()) {
-              const appUserData = userDocSnap.data() as AppUserType;
-              if (appUserData.contractStatus !== 'Aktif') {
-                // Log out inactive user
-                await signOut(auth);
-                setUser(null);
-                setFirebaseUser(null);
-                // Optionally, show a toast here: "Akun Anda tidak aktif."
+            try {
+              const userDocSnap = await getDoc(userDocRef);
+              if (userDocSnap.exists()) {
+                const appUserData = userDocSnap.data() as AppUserType;
+                if (appUserData.contractStatus !== 'Aktif') {
+                  await signOut(auth); // auth is guaranteed to be non-null here
+                  setUser(null);
+                  setFirebaseUser(null);
+                  // console.log("User logged out due to inactive contract status.");
+                  // Optionally, show a toast here via a global toast context or event emitter
+                } else {
+                  setUser(appUserData);
+                }
               } else {
-                setUser(appUserData);
+                console.warn("User document not found in Firestore for UID:", fbUser.uid, "Logging out.");
+                await signOut(auth); // auth is guaranteed to be non-null here
+                setUser(null); 
               }
-            } else {
-              // User exists in Auth but not in Firestore users collection (should not happen for couriers)
-              // Or this is an admin user without a separate Firestore document in 'users'
-              console.warn("User document not found in Firestore for UID:", fbUser.uid);
-              setUser(null); // Or handle as admin if appropriate
+            } catch (error) {
+              console.error("Error fetching user document from Firestore:", error);
+              await signOut(auth); // auth is guaranteed to be non-null here
+              setUser(null);
             }
           } else {
             setUser(null);
@@ -112,13 +115,17 @@
 
       const login = async (idOrEmail: string, pass: string): Promise<AuthLoginResponse> => {
         setIsLoading(true);
+
+        if (!auth || !db) {
+          console.error("Firebase auth or db not initialized during login attempt.");
+          setIsLoading(false);
+          return { success: false, message: "Layanan autentikasi tidak siap. Coba lagi nanti." };
+        }
         
-        // Try admin login first (using hardcoded credentials for simplicity in prototype)
-        // In production, admins would also be Firebase users, possibly with custom claims
         const ADMIN_CREDENTIALS = [
-          { id: "MASTERADMIN", password: "masterpassword", role: "master" as const, email: "masteradmin@example.com"},
-          { id: "ADMIN01", password: "admin123", role: "regular" as const, email: "admin01@example.com"},
-          { id: "SUPERVISOR01", password: "super123", role: "regular" as const, email: "supervisor01@example.com"},
+          { id: "MASTERADMIN", password: "masterpassword", role: "master" as const, email: "masteradmin@spxkurir.app"}, // Use consistent domain for admins too
+          { id: "ADMIN01", password: "admin123", role: "regular" as const, email: "admin01@spxkurir.app"},
+          { id: "SUPERVISOR01", password: "super123", role: "regular" as const, email: "supervisor01@spxkurir.app"},
         ];
 
         const foundAdmin = ADMIN_CREDENTIALS.find(
@@ -127,14 +134,11 @@
 
         if (foundAdmin) {
           try {
-            // For prototype, we might "mock" Firebase auth for admins or use real admin Firebase accounts
-            // Here, we'll assume admins also have Firebase accounts matching their emails.
-            // This requires admins to be pre-registered in Firebase Auth.
             const adminFirebaseUserCredential = await signInWithEmailAndPassword(auth, foundAdmin.email, foundAdmin.password);
             const adminData: AdminSession = { id: foundAdmin.id, role: foundAdmin.role, firebaseUid: adminFirebaseUserCredential.user.uid };
             setAdminSession(adminData);
             localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminData));
-            setUser(null); // Clear courier user state
+            setUser(null); 
             setFirebaseUser(adminFirebaseUserCredential.user);
             setIsLoading(false);
             return { success: true };
@@ -145,16 +149,35 @@
           }
         }
 
-        // If not admin, try courier login with Firebase Auth
-        // Assuming courier ID is the username part of an email like `courierId@courirdomain.com`
-        // You'll need to decide on an email format for couriers.
-        const courierEmail = `${idOrEmail}@spxkurir.app`; // Example domain
+        let finalCourierEmail: string;
+
+        if (idOrEmail.includes('@')) {
+            // User might have entered a full email. Validate if it's one of ours or just try.
+            // For now, assume it's correctly formatted if it contains '@'.
+            // A stricter validation would be idOrEmail.endsWith('@spxkurir.app')
+            finalCourierEmail = idOrEmail;
+            // Check if the local part of the entered email is valid
+            const localPart = idOrEmail.split('@')[0];
+            if (/\s/.test(localPart) || !/^[a-zA-Z0-9_.-]+$/.test(localPart)) {
+                 setIsLoading(false);
+                 return { success: false, message: "Format ID Pengguna (bagian sebelum '@') tidak valid. Hanya huruf, angka, _, ., - yang diizinkan dan tanpa spasi." };
+            }
+        } else {
+            // User entered an ID, construct the email.
+            // Validate the ID part for allowed characters.
+            if (/\s/.test(idOrEmail) || !/^[a-zA-Z0-9_.-]+$/.test(idOrEmail)) {
+                setIsLoading(false);
+                return { success: false, message: "Format ID Pengguna tidak valid. Hanya huruf, angka, _, ., - yang diizinkan dan tanpa spasi." };
+            }
+            finalCourierEmail = `${idOrEmail}@spxkurir.app`;
+        }
+        
         try {
-          const userCredential = await signInWithEmailAndPassword(auth, courierEmail, pass);
+          const userCredential = await signInWithEmailAndPassword(auth, finalCourierEmail, pass);
           // onAuthStateChanged will handle setting firebaseUser and fetching AppUser data
           // The check for contractStatus will happen in onAuthStateChanged
           setIsLoading(false);
-          return { success: true }; // User data will be set by onAuthStateChanged
+          return { success: true }; 
         } catch (error: any) {
           setIsLoading(false);
           console.error("Courier login error:", error);
@@ -162,7 +185,7 @@
           if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             message = "ID atau Password salah.";
           } else if (error.code === 'auth/invalid-email') {
-             message = "Format ID tidak valid untuk login.";
+             message = "Format email yang digunakan untuk login tidak valid. Mohon periksa kembali ID Anda.";
           }
           return { success: false, message };
         }
@@ -170,10 +193,21 @@
 
       const logout = async () => {
         setIsLoading(true);
+        if (!auth) {
+          console.error("Firebase auth not initialized during logout attempt.");
+          // Still clear local state as a fallback
+          localStorage.removeItem(ADMIN_SESSION_KEY);
+          setUser(null);
+          setFirebaseUser(null);
+          setAdminSession(null);
+          router.push('/login');
+          setIsLoading(false);
+          return;
+        }
         await signOut(auth);
         // onAuthStateChanged will clear user, firebaseUser, adminSession states
-        localStorage.removeItem(ADMIN_SESSION_KEY);
-        router.push('/login');
+        // localStorage.removeItem(ADMIN_SESSION_KEY); // This is handled in onAuthStateChanged
+        router.push('/login'); // onAuthStateChanged might also handle redirect, but this ensures it
         setIsLoading(false);
       };
       
