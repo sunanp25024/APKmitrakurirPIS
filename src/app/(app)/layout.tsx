@@ -5,10 +5,9 @@ import { AppSidebar } from '@/components/layout/AppSidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger as ShadcnSidebarTrigger } from '@/components/ui/sidebar';
 import { useAuthRedirect } from '@/hooks/useAuthRedirect';
 import { useAuth } from '@/contexts/AuthContext';
-import { Loader2, PanelLeft, LogOut, SettingsIcon, UserCog } from 'lucide-react'; // Added UserCog
+import { Loader2, PanelLeft, LogOut, SettingsIcon } from 'lucide-react'; // Removed UserCog
 import React from 'react';
-import { Button } from '@/components/ui/button'; // Added Button
-import Link from 'next/link'; // Added Link
+import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -58,20 +57,9 @@ export default function AppLayout({
               <h1 className="text-lg font-semibold font-headline md:hidden">SPX Mitra Kurir</h1>
             </div>
             
-            {/* Admin & User Dropdown for Mobile & Desktop */}
+            {/* User Dropdown for Mobile & Desktop */}
             <div className="flex items-center gap-4">
-              <Link href="/admin/couriers">
-                <Button variant="outline" size="sm" className="hidden sm:flex items-center gap-2">
-                  <UserCog className="h-4 w-4" />
-                  Admin Panel
-                </Button>
-              </Link>
-               <Link href="/admin/couriers">
-                 <Button variant="ghost" size="icon" className="sm:hidden">
-                  <UserCog className="h-5 w-5" />
-                   <span className="sr-only">Admin Panel</span>
-                </Button>
-              </Link>
+              {/* Admin Panel Link Removed */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
