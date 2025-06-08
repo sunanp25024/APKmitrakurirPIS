@@ -54,7 +54,6 @@ export default function DashboardPage() {
   }, []);
 
  useEffect(() => {
-    // These variables will hold the active instances for the current scanning session
     let currentStream: MediaStream | null = null;
     let currentReader: BrowserMultiFormatReader | null = null;
     let currentControls: IScannerControls | null = null;
@@ -91,26 +90,36 @@ export default function DashboardPage() {
     };
 
     const initializeAndStartScanner = async () => {
-      // Reset states for this attempt
       currentStream = null;
       currentReader = null;
       currentControls = null;
-      setHasCameraPermission(null); // Indicate processing
+      setHasCameraPermission(null); 
       
       console.log('Scan dialog opened. Initializing scanner...');
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API not supported by this browser.');
+        setHasCameraPermission(false);
+        toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
+        return;
+      }
 
       try {
         const zxing = await import('@zxing/library');
         console.log('@zxing/library loaded successfully. Module content:', zxing);
-
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          console.error('Camera API not supported by this browser.');
-          setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
-          return;
-        }
         
-        stopScanAndCamera(); // Ensure previous session is fully cleaned up
+        if (!zxing || typeof zxing.BrowserMultiFormatReader !== 'function') {
+            console.error('BrowserMultiFormatReader class not found in Zxing module.', zxing);
+            stopScanAndCamera();
+            setHasCameraPermission(false);
+            toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen pemindai tidak ditemukan (gagal load). Periksa konsol.' });
+            return;
+        }
+        console.log('BrowserMultiFormatReader constructor reference:', zxing.BrowserMultiFormatReader);
+        console.log('zxing.BarcodeFormat available:', !!zxing.BarcodeFormat);
+        console.log('zxing.DecodeHintType available:', !!zxing.DecodeHintType);
+        
+        stopScanAndCamera(); 
 
         try {
           console.log('Requesting camera permission...');
@@ -132,7 +141,7 @@ export default function DashboardPage() {
         if (!currentStream) {
           console.error('Failed to obtain camera stream, currentStream is null.');
           setHasCameraPermission(false);
-          toast({ title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera setelah izin.' });
+          toast({ variant: 'destructive', title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera setelah izin.' });
           return;
         }
 
@@ -159,53 +168,34 @@ export default function DashboardPage() {
           return;
         }
         
-        if (!zxing || typeof zxing.BrowserMultiFormatReader !== 'function') {
-            console.error('BrowserMultiFormatReader class not found in Zxing module.', zxing);
-            stopScanAndCamera();
-            setHasCameraPermission(false);
-            toast({ variant: 'destructive', title: 'Scan Error', description: 'Komponen pemindai tidak ditemukan.' });
-            return;
-        }
-        console.log('BrowserMultiFormatReader constructor reference:', zxing.BrowserMultiFormatReader);
-        console.log('zxing.BarcodeFormat available:', !!zxing.BarcodeFormat);
-        console.log('zxing.DecodeHintType available:', !!zxing.DecodeHintType);
-
-
         try {
-          console.log('Attempting to instantiate BrowserMultiFormatReader (no hints)...');
-          currentReader = new zxing.BrowserMultiFormatReader();
-          console.log('BrowserMultiFormatReader instance (no hints) created:', currentReader);
-
-          if (currentReader && typeof currentReader.decodeFromContinuously === 'function') {
+            const hints = new Map();
             if (zxing.BarcodeFormat && zxing.DecodeHintType) {
-                console.log('Attempting to re-instantiate BrowserMultiFormatReader with hints...');
-                currentReader.reset(); 
-                const hints = new Map();
-                const formats = [
+                 const formats = [
                     zxing.BarcodeFormat.QR_CODE, zxing.BarcodeFormat.CODE_128, 
                     zxing.BarcodeFormat.EAN_13, zxing.BarcodeFormat.UPC_A, 
-                    zxing.BarcodeFormat.DATA_MATRIX
+                    zxing.BarcodeFormat.DATA_MATRIX, zxing.BarcodeFormat.CODE_39,
+                    zxing.BarcodeFormat.ITF
                 ];
                 hints.set(zxing.DecodeHintType.POSSIBLE_FORMATS, formats);
-                currentReader = new zxing.BrowserMultiFormatReader(hints);
-                console.log('BrowserMultiFormatReader instance (with hints) re-created:', currentReader);
+                hints.set(zxing.DecodeHintType.TRY_HARDER, true); 
             } else {
-                console.warn('BarcodeFormat or DecodeHintType not available, proceeding with no-hints reader.');
+                console.warn('BarcodeFormat or DecodeHintType not available, proceeding without specific format hints. Will use an empty Map for hints.');
             }
-          } else {
-             console.error('Initial BrowserMultiFormatReader (no hints) instance is invalid or missing decodeFromContinuously. Instance:', currentReader);
-             // No need to try with hints if the base constructor failed.
-          }
+            console.log('Attempting to instantiate BrowserMultiFormatReader with hints:', hints);
+            currentReader = new zxing.BrowserMultiFormatReader(hints, 500); 
+            console.log('BrowserMultiFormatReader instance (with hints) created:', currentReader);
+
         } catch (readerError) {
           console.error('Critical error during BrowserMultiFormatReader instantiation:', readerError);
-          currentReader = null; // Ensure it's null if constructor threw
+          currentReader = null; 
         }
         
         if (!currentReader || typeof currentReader.decodeFromContinuously !== 'function') {
           console.error('Failed to create a valid Zxing reader instance or method not found. Final instance state:', currentReader);
           stopScanAndCamera();
           setHasCameraPermission(false);
-          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal menginisialisasi pemindai barcode. Silakan coba lagi.' });
+          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal menginisialisasi pemindai barcode (instance tidak valid). Periksa konsol.' });
           return;
         }
 
@@ -213,7 +203,7 @@ export default function DashboardPage() {
         currentControls = currentReader.decodeFromContinuously(
             videoRef.current, 
             (result, error) => {
-                if (!currentControls) { // Check if scanner was stopped (currentControls nulled by stopScanAndCamera)
+                if (!currentControls) { 
                   console.log('Scan callback received after scanner was stopped. Ignoring.');
                   return; 
                 }
@@ -232,7 +222,7 @@ export default function DashboardPage() {
 
       } catch (libraryOrInitError) {
         console.error("General error during scanner initialization process:", libraryOrInitError);
-        toast({ variant: "destructive", title: "Scan Initialization Error", description: "Gagal memuat atau memulai pemindai." });
+        toast({ variant: "destructive", title: "Scan Initialization Error", description: "Gagal memuat atau memulai pemindai. Periksa konsol." });
         stopScanAndCamera(); 
         setHasCameraPermission(false);
       }
@@ -248,7 +238,7 @@ export default function DashboardPage() {
       console.log('useEffect cleanup: isScanDialogOpen changed or component unmounted.');
       stopScanAndCamera();
     };
-  }, [isScanDialogOpen]); // Only re-run when dialog state changes
+  }, [isScanDialogOpen, toast]); 
 
   const handleDailyInputChange = () => {
     if (totalPackagesCarried <= 0) {
