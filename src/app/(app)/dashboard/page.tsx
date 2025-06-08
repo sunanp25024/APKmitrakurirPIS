@@ -26,9 +26,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-// BarcodeScanner component is not used here as per error path
-// import { BarcodeScanner } from '@/components/scan/BarcodeScanner';
-
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
@@ -98,7 +95,10 @@ export default function DashboardPage() {
 
     const initializeAndStartScanner = async () => {
       console.log('BarcodeScanner: Initializing and starting scanner...');
-      stopScanAndCamera(); // Ensure clean state
+      stopScanAndCamera(); 
+      currentStream = null;
+      currentReader = null;
+      currentControls = null;
       setHasCameraPermission(null);
       setScanHintMessage("Menyiapkan kamera...");
 
@@ -130,8 +130,6 @@ export default function DashboardPage() {
           console.error('BarcodeScanner: BrowserMultiFormatReader class not found in the imported module.');
           throw new Error('BrowserMultiFormatReader class not found');
         }
-        // No need to check for BarcodeFormat/DecodeHintType here if we plan to try constructing without hints first or handle their absence
-
       } catch (libLoadError) {
         console.error('BarcodeScanner: Failed to load or process @zxing/library:', libLoadError);
         setHasCameraPermission(false);
@@ -184,7 +182,7 @@ export default function DashboardPage() {
         console.log('BarcodeScanner: Attempting to play video...');
         await videoRef.current.play();
         console.log('BarcodeScanner: Video playing.');
-        setHasCameraPermission(true); // Moved here, only set if video plays
+        setHasCameraPermission(true); 
         setScanHintMessage("Kamera aktif. Arahkan ke barcode.");
       } catch (playError) {
         console.error("BarcodeScanner: Error playing video:", playError);
@@ -195,7 +193,6 @@ export default function DashboardPage() {
         return;
       }
       
-      // Attempt to create reader instance
       try {
         const hints = new Map();
         if (BarcodeFormat && DecodeHintType) {
@@ -211,7 +208,7 @@ export default function DashboardPage() {
             currentReader = new BrowserMultiFormatReader(hints, 500);
         } else {
             console.warn('@zxing/library: BarcodeFormat or DecodeHintType not available. Attempting to create reader without specific format hints, using a default Map for hints.');
-            currentReader = new BrowserMultiFormatReader(new Map(), 500); // Pass empty Map if hints cannot be fully constructed
+            currentReader = new BrowserMultiFormatReader(new Map(), 500); 
         }
         console.log('BarcodeScanner: BrowserMultiFormatReader instance attempt. Result:', currentReader);
       } catch (readerError) {
@@ -241,13 +238,13 @@ export default function DashboardPage() {
               setResiInput(result.getText().toUpperCase());
               toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText().toUpperCase()}` });
               setScanHintMessage(null); 
-            } else if (error) {
-              if (zxingModule && error instanceof zxingModule.NotFoundException) {
+            } else if (error && zxingModule) { // Ensure zxingModule is available for instance checks
+              if (error instanceof zxingModule.NotFoundException) {
                 setScanHintMessage("Barcode tidak terdeteksi. Arahkan lebih jelas atau dekatkan.");
-              } else if (zxingModule && (error instanceof zxingModule.ChecksumException || error instanceof zxingModule.FormatException)) {
+              } else if (error instanceof zxingModule.ChecksumException || error instanceof zxingModule.FormatException) {
                 setScanHintMessage("Barcode terdeteksi tetapi formatnya salah atau rusak.");
               } else {
-                // console.warn('BarcodeScanner: Minor scan error:', error.name);
+                // console.warn('BarcodeScanner: Minor scan error:', error.name, error.message);
                 setScanHintMessage("Error saat memindai barcode.");
               }
             }
@@ -274,7 +271,7 @@ export default function DashboardPage() {
       stopScanAndCamera();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isScanDialogOpen]); // Removed toast from deps as it shouldn't re-trigger this effect.
+  }, [isScanDialogOpen]); 
 
 
   const handleDailyInputChange = () => {
@@ -817,4 +814,3 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
   );
 }
     
-
