@@ -29,17 +29,17 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { useToast } from '@/hooks/use-toast';
 import type { User } from '@/types';
 import { mockUsers } from '@/lib/mockData'; // Fallback
-import { PlusCircle, Edit, Trash2, UserPlus, Info } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, UserPlus, Info, Eye, EyeOff } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 const courierSchema = z.object({
   id: z.string().min(3, "ID minimal 3 karakter").regex(/^[a-zA-Z0-9_.-]*$/, "ID hanya boleh berisi huruf, angka, _, ., -"),
   fullName: z.string().min(3, "Nama lengkap minimal 3 karakter"),
-  password: z.string().min(6, "Password minimal 6 karakter").or(z.string().length(0)), // Allow empty for edit if not changing
+  password: z.string().min(6, "Password minimal 6 karakter").or(z.string().length(0).optional()),
   wilayah: z.string().min(3, "Wilayah minimal 3 karakter"),
   area: z.string().min(3, "Area minimal 3 karakter"),
   workLocation: z.string().min(3, "Lokasi kerja minimal 3 karakter"),
-  joinDate: z.string().min(1, "Tanggal join tidak boleh kosong"), 
+  joinDate: z.string().min(1, "Tanggal join tidak boleh kosong"),
   jobTitle: z.string().min(1, "Jabatan tidak boleh kosong"),
   contractStatus: z.string().min(1, "Status kontrak tidak boleh kosong"),
   accountNumber: z.string().min(1, "Nomor rekening tidak boleh kosong").regex(/^[0-9]*$/, "Nomor rekening hanya boleh angka"),
@@ -57,10 +57,11 @@ export default function AdminCouriersPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [editingCourier, setEditingCourier] = useState<User | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { toast } = useToast();
 
-  const { register, handleSubmit, reset, formState: { errors }, setValue } = useForm<CourierFormInputs>({
+  const { register, handleSubmit, reset, formState: { errors }, setValue, watch } = useForm<CourierFormInputs>({
     resolver: zodResolver(courierSchema),
     defaultValues: {
       id: '',
@@ -79,6 +80,8 @@ export default function AdminCouriersPage() {
     }
   });
 
+  const currentPasswordValue = watch('password'); // To help with conditional error message
+
   useEffect(() => {
     setIsMounted(true);
     try {
@@ -91,7 +94,7 @@ export default function AdminCouriersPage() {
       }
     } catch (error) {
       console.error("Failed to parse users from localStorage:", error);
-      setCouriers(mockUsers); 
+      setCouriers(mockUsers);
     }
   }, []);
 
@@ -110,11 +113,10 @@ export default function AdminCouriersPage() {
       const courierToUpdate = couriers.find(c => c.id === editingCourier.id);
       if (!courierToUpdate) return;
 
-      const updatedData = {
-        ...courierToUpdate, // existing data
-        ...userData, // new data from form
-        // Conditionally update password if a new one is provided
-        password: data.password ? data.password : courierToUpdate.password,
+      const updatedData: User = {
+        ...courierToUpdate,
+        ...userData,
+        password: (data.password && data.password.length > 0) ? data.password : courierToUpdate.password,
       };
 
       updatedCouriers = couriers.map(c => c.id === editingCourier.id ? updatedData : c);
@@ -124,11 +126,12 @@ export default function AdminCouriersPage() {
         toast({ variant: "destructive", title: "Error", description: `ID Kurir ${data.id} sudah ada.` });
         return;
       }
-      if (!data.password) { // Password is required for new courier
+      if (!data.password || data.password.length === 0) {
         toast({ variant: "destructive", title: "Error", description: `Password wajib diisi untuk kurir baru.` });
+        setValue('password', ''); // Clear password if it was an empty string that failed validation
         return;
       }
-      const newCourier: User = { ...userData, password: data.password }; // Ensure password is included
+      const newCourier: User = { ...userData, password: data.password };
       updatedCouriers = [...couriers, newCourier];
       toast({ title: "Kurir Ditambahkan", description: `${data.fullName} telah ditambahkan sebagai kurir.` });
     }
@@ -137,19 +140,21 @@ export default function AdminCouriersPage() {
     reset();
     setEditingCourier(null);
     setIsFormOpen(false);
+    setShowPassword(false);
   };
 
   const handleEdit = (courier: User) => {
     setEditingCourier(courier);
-    Object.keys(courier).forEach(key => {
-      if (key === 'password') {
-        setValue(key as keyof CourierFormInputs, ''); // Clear password field for editing
-      } else {
-        setValue(key as keyof CourierFormInputs, courier[key as keyof User] || '');
-      }
-    });
+    setShowPassword(false);
+    // Reset form with existing courier data, clear password for edit
+    const defaultEditValues: Partial<CourierFormInputs> = {
+      ...courier,
+      password: '', // Clear password field for editing
+    };
+    reset(defaultEditValues);
     setIsFormOpen(true);
   };
+
 
   const handleDelete = (courierId: string) => {
     if (window.confirm(`Apakah Anda yakin ingin menghapus kurir dengan ID ${courierId}?`)) {
@@ -161,14 +166,14 @@ export default function AdminCouriersPage() {
   };
 
   const openAddForm = () => {
-    reset({ 
+    reset({
         id: '',
         fullName: '',
         password: '',
         wilayah: '',
         area: '',
         workLocation: '',
-        joinDate: new Date().toISOString().split('T')[0], 
+        joinDate: new Date().toISOString().split('T')[0],
         jobTitle: 'Mitra Kurir',
         contractStatus: 'Aktif',
         accountNumber: '',
@@ -177,6 +182,7 @@ export default function AdminCouriersPage() {
         avatarUrl: '',
     });
     setEditingCourier(null);
+    setShowPassword(false);
     setIsFormOpen(true);
   };
 
@@ -251,6 +257,7 @@ export default function AdminCouriersPage() {
           if (!isOpen) {
             reset();
             setEditingCourier(null);
+            setShowPassword(false);
           }
       }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -271,9 +278,28 @@ export default function AdminCouriersPage() {
               </div>
               <div>
                 <Label htmlFor="password">Password</Label>
-                <Input id="password" type="password" {...register('password')} placeholder={editingCourier ? "Kosongkan jika tidak ingin mengubah" : ""}/>
-                {errors.password && !editingCourier && data.password === "" && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
-                {editingCourier && <p className="text-xs text-muted-foreground mt-1">Kosongkan jika tidak ingin mengubah password.</p>}
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    {...register('password')}
+                    placeholder={editingCourier ? "Kosongkan jika tidak ingin mengubah" : "Minimal 6 karakter"}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute inset-y-0 right-0 h-full px-3 flex items-center text-muted-foreground hover:text-foreground"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {errors.password && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
+                {!errors.password && editingCourier && (!currentPasswordValue || currentPasswordValue.length === 0) && <p className="text-xs text-muted-foreground mt-1">Kosongkan jika tidak ingin mengubah password.</p>}
               </div>
               <div>
                 <Label htmlFor="wilayah">Wilayah</Label>
@@ -331,7 +357,7 @@ export default function AdminCouriersPage() {
             </div>
             <DialogFooter className="pt-4">
               <DialogClose asChild>
-                <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); reset(); setEditingCourier(null); }}>Batal</Button>
+                <Button type="button" variant="outline" onClick={() => { setIsFormOpen(false); reset(); setEditingCourier(null); setShowPassword(false); }}>Batal</Button>
               </DialogClose>
               <Button type="submit">{editingCourier ? 'Simpan Perubahan' : 'Tambah Kurir'}</Button>
             </DialogFooter>
@@ -341,6 +367,3 @@ export default function AdminCouriersPage() {
     </div>
   );
 }
-
-
-    
