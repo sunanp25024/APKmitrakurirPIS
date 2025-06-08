@@ -60,13 +60,13 @@ export default function AppLayout({
             
             {/* Admin & User Dropdown for Mobile & Desktop */}
             <div className="flex items-center gap-4">
-              <Link href="/admin/couriers" passHref legacyBehavior>
+              <Link href="/admin/couriers">
                 <Button variant="outline" size="sm" className="hidden sm:flex items-center gap-2">
                   <UserCog className="h-4 w-4" />
                   Admin Panel
                 </Button>
               </Link>
-               <Link href="/admin/couriers" passHref legacyBehavior>
+               <Link href="/admin/couriers">
                  <Button variant="ghost" size="icon" className="sm:hidden">
                   <UserCog className="h-5 w-5" />
                    <span className="sr-only">Admin Panel</span>
