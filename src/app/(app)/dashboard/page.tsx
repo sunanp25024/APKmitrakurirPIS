@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import type { PackageItem, PackageStatus, AdminCourierDailySummary, User as CourierUser } from '@/types';
-import { mockPackages, motivationalQuotes, mockAttendance } from '@/lib/mockData';
+import { mockPackages, motivationalQuotes } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -31,6 +31,8 @@ import Link from 'next/link';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 const LOCAL_STORAGE_DAILY_REPORTS_KEY = 'spxCourierDailySummaries';
+const LOCAL_STORAGE_LAST_CHECK_IN_KEY = 'spxUserLastCheckInDate';
+
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -49,19 +51,37 @@ export default function DashboardPage() {
   const [scanHintMessage, setScanHintMessage] = useState<string | null>("Kamera belum aktif.");
   
   const [hasCheckedInToday, setHasCheckedInToday] = useState<boolean | null>(null);
+  const [isDashboardMounted, setIsDashboardMounted] = useState(false);
+
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
   const router = useRouter();
 
-  useEffect(() => {
-    // Check attendance status
+  const checkAttendanceStatus = useCallback(() => {
+    const lastCheckInDate = localStorage.getItem(LOCAL_STORAGE_LAST_CHECK_IN_KEY);
     const todayFormatted = format(new Date(), "yyyy-MM-dd");
-    // For prototype, we assume mockAttendance is relevant to the current user.
-    // In a real app, this would be user-specific.
-    const attendanceEntryForToday = mockAttendance.find(entry => entry.date === todayFormatted && entry.checkInTime);
-    setHasCheckedInToday(!!attendanceEntryForToday);
+    if (lastCheckInDate === todayFormatted) {
+      setHasCheckedInToday(true);
+    } else {
+      setHasCheckedInToday(false);
+    }
   }, []);
+
+  useEffect(() => {
+    setIsDashboardMounted(true);
+    checkAttendanceStatus(); // Check on initial mount
+  }, [checkAttendanceStatus]);
+
+  // Re-check on window focus to catch updates from other tabs
+  useEffect(() => {
+    if (!isDashboardMounted) return;
+
+    window.addEventListener('focus', checkAttendanceStatus);
+    return () => {
+      window.removeEventListener('focus', checkAttendanceStatus);
+    };
+  }, [isDashboardMounted, checkAttendanceStatus]);
 
 
   useEffect(() => {
@@ -283,6 +303,10 @@ export default function DashboardPage() {
   };
   
   const handleAddPackage = () => {
+    if (!hasCheckedInToday) {
+      toast({ variant: "destructive", title: "Absensi Diperlukan", description: "Harap check-in absensi terlebih dahulu." });
+      return;
+    }
     if (!isDailyInputSubmitted) {
       toast({ variant: "destructive", title: "Error", description: "Harap simpan data paket harian terlebih dahulu." });
       return;
@@ -316,6 +340,10 @@ export default function DashboardPage() {
   };
   
   const handleFinishDay = () => {
+     if (!hasCheckedInToday) {
+      toast({ variant: "destructive", title: "Absensi Diperlukan", description: "Harap check-in absensi terlebih dahulu." });
+      return;
+    }
     if (!user) {
         toast({ variant: "destructive", title: "Error", description: "User tidak ditemukan." });
         return;
@@ -347,13 +375,11 @@ export default function DashboardPage() {
       return;
     }
 
-    // Save daily summary to localStorage
     const todayDateString = format(new Date(), "yyyy-MM-dd");
     const deliveredCount = packages.filter(p => p.status === 'Terkirim').length;
     const failedOrReturnedCount = packages.filter(p => ['Tidak Terkirim', 'Pending', 'Dikembalikan'].includes(p.status)).length;
     const attemptedDeliveries = deliveredCount + failedOrReturnedCount;
     const successRate = attemptedDeliveries > 0 ? (deliveredCount / attemptedDeliveries) * 100 : 0;
-
 
     const dailySummary: AdminCourierDailySummary = {
       courierId: user.id,
@@ -384,7 +410,7 @@ export default function DashboardPage() {
     } catch (error) {
         console.error("Error saving daily summary to localStorage:", error);
         toast({ variant: "destructive", title: "Gagal Menyimpan", description: "Gagal menyimpan ringkasan harian." });
-        return; // Don't proceed if saving failed
+        return; 
     }
     
     setPackages([]);
@@ -425,6 +451,9 @@ export default function DashboardPage() {
 
   }, [packages, isDailyInputSubmitted, totalPackagesCarried]);
 
+  if (!isDashboardMounted) {
+    return <div className="flex h-screen items-center justify-center">Loading dashboard...</div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -593,10 +622,11 @@ export default function DashboardPage() {
           <PackageTable
             packages={packagesByStatus('Proses')}
             actions={[
-              { label: 'Mulai Antar', icon: Truck, onClick: (p) => updatePackageStatus(p.resi, 'Dalam Pengantaran'), variant: 'default', disabled: !isDailyInputSubmitted || !hasCheckedInToday },
-              { label: 'Hapus', icon: Trash2, onClick: (p) => deletePackage(p.resi), variant: 'destructive', disabled: !isDailyInputSubmitted || !hasCheckedInToday }
+              { label: 'Mulai Antar', icon: Truck, onClick: (p) => updatePackageStatus(p.resi, 'Dalam Pengantaran'), variant: 'default' },
+              { label: 'Hapus', icon: Trash2, onClick: (p) => deletePackage(p.resi), variant: 'destructive' }
             ]}
             emptyMessage="Tidak ada paket dalam proses."
+            actionsDisabled={!hasCheckedInToday}
           />
         </CardContent>
       </Card>
@@ -618,8 +648,8 @@ export default function DashboardPage() {
           <PackageTable
             packages={packagesByStatus('Dalam Pengantaran')}
             actions={[
-              (p) => <PackageActionButton key={`photo-${p.resi}`} pkg={p} actionType="photo" updatePackageStatus={updatePackageStatus} disabled={!deliveryActionsActive || !hasCheckedInToday} />,
-              { label: 'Gagal Kirim', icon: PackageX, onClick: (p) => updatePackageStatus(p.resi, 'Tidak Terkirim'), variant: 'outline', disabled: !deliveryActionsActive || !hasCheckedInToday }
+              (p) => <PackageActionButton key={`photo-${p.resi}`} pkg={p} actionType="photo" updatePackageStatus={updatePackageStatus} disabled={!deliveryActionsActive} />,
+              { label: 'Gagal Kirim', icon: PackageX, onClick: (p) => updatePackageStatus(p.resi, 'Tidak Terkirim'), variant: 'outline', disabled: !deliveryActionsActive }
             ]}
             emptyMessage="Tidak ada paket yang sedang diantar."
             showRecipientInput
@@ -640,6 +670,7 @@ export default function DashboardPage() {
             emptyMessage="Belum ada paket terkirim hari ini."
             showPhoto
             showRecipientName
+            actionsDisabled={!hasCheckedInToday}
           />
         </CardContent>
       </Card>
@@ -653,10 +684,11 @@ export default function DashboardPage() {
           <PackageTable
             packages={[...packagesByStatus('Tidak Terkirim'), ...packagesByStatus('Pending')]}
             actions={[
-              (p) => <PackageActionButton key={`return-${p.resi}`} pkg={p} actionType="returnProof" updatePackageStatus={updatePackageStatus} disabled={!isDailyInputSubmitted || !hasCheckedInToday} />,
+              (p) => <PackageActionButton key={`return-${p.resi}`} pkg={p} actionType="returnProof" updatePackageStatus={updatePackageStatus} />,
             ]}
             emptyMessage="Tidak ada paket pending atau tidak terkirim."
              showPhoto
+             actionsDisabled={!hasCheckedInToday}
           />
         </CardContent>
       </Card>
@@ -671,6 +703,7 @@ export default function DashboardPage() {
                 packages={packagesByStatus('Dikembalikan')}
                 emptyMessage="Belum ada paket yang dikembalikan."
                 showPhoto
+                actionsDisabled={!hasCheckedInToday}
             />
         </CardContent>
       </Card>
@@ -857,3 +890,4 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     
 
     
+

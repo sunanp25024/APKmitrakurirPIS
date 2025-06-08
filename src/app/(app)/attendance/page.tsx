@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { AttendanceEntry } from '@/types';
 import { mockAttendance } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
@@ -14,11 +14,38 @@ import { format, differenceInMinutes } from "date-fns"
 import { Calendar as CalendarIcon, LogIn, LogOut, BarChart3, CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
+const LOCAL_STORAGE_ATTENDANCE_KEY = 'spxUserAttendanceLog';
+const LOCAL_STORAGE_LAST_CHECK_IN_KEY = 'spxUserLastCheckInDate';
+
 export default function AttendancePage() {
-  const [attendanceLog, setAttendanceLog] = useState<AttendanceEntry[]>(mockAttendance);
+  const [attendanceLog, setAttendanceLog] = useState<AttendanceEntry[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [currentTime, setCurrentTime] = useState<string>('');
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+    try {
+      const storedLog = localStorage.getItem(LOCAL_STORAGE_ATTENDANCE_KEY);
+      if (storedLog) {
+        setAttendanceLog(JSON.parse(storedLog));
+      } else {
+        setAttendanceLog(mockAttendance); 
+        localStorage.setItem(LOCAL_STORAGE_ATTENDANCE_KEY, JSON.stringify(mockAttendance));
+      }
+    } catch (error) {
+      console.error("Failed to load attendance log from localStorage:", error);
+      setAttendanceLog(mockAttendance); 
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isMounted) { 
+        localStorage.setItem(LOCAL_STORAGE_ATTENDANCE_KEY, JSON.stringify(attendanceLog));
+    }
+  }, [attendanceLog, isMounted]);
+
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -27,9 +54,13 @@ export default function AttendancePage() {
     return () => clearInterval(timer);
   }, []);
 
-  const todayEntry = attendanceLog.find(entry => entry.date === format(new Date(), "yyyy-MM-dd"));
+  const todayEntry = useMemo(() => {
+    if (!isMounted) return undefined;
+    return attendanceLog.find(entry => entry.date === format(new Date(), "yyyy-MM-dd"));
+  }, [attendanceLog, isMounted]);
 
   const handleCheckIn = () => {
+    if (!isMounted) return;
     const now = new Date();
     const todayFormatted = format(now, "yyyy-MM-dd");
     const timeFormatted = format(now, "HH:mm");
@@ -43,13 +74,19 @@ export default function AttendancePage() {
       id: String(Date.now()),
       date: todayFormatted,
       checkInTime: timeFormatted,
-      status: now.getHours() < 9 ? 'On Time' : 'Late', // Assuming 9 AM is cut-off for on-time
+      status: now.getHours() < 9 ? 'On Time' : 'Late', 
     };
-    setAttendanceLog(prev => [newEntry, ...prev.filter(e => e.date !== todayFormatted)]);
+    
+    setAttendanceLog(prev => {
+        const newLog = [newEntry, ...prev.filter(e => e.date !== todayFormatted)];
+        return newLog;
+    });
+    localStorage.setItem(LOCAL_STORAGE_LAST_CHECK_IN_KEY, todayFormatted);
     toast({ title: "Check-in Berhasil", description: `Anda berhasil check-in pukul ${timeFormatted}.` });
   };
 
   const handleCheckOut = () => {
+    if (!isMounted) return;
     const now = new Date();
     const todayFormatted = format(now, "yyyy-MM-dd");
     const timeFormatted = format(now, "HH:mm");
@@ -63,9 +100,12 @@ export default function AttendancePage() {
       return;
     }
 
-    setAttendanceLog(prev => prev.map(entry => 
-      entry.date === todayFormatted ? { ...entry, checkOutTime: timeFormatted } : entry
-    ));
+    setAttendanceLog(prev => {
+        const newLog = prev.map(entry => 
+          entry.date === todayFormatted ? { ...entry, checkOutTime: timeFormatted } : entry
+        );
+        return newLog;
+    });
     toast({ title: "Check-out Berhasil", description: `Anda berhasil check-out pukul ${timeFormatted}.` });
   };
 
@@ -76,7 +116,6 @@ export default function AttendancePage() {
         const [inHour, inMinute] = checkInTime.split(':').map(Number);
         const [outHour, outMinute] = checkOutTime.split(':').map(Number);
 
-        // JavaScript Date months are 0-indexed (0 for January, 11 for December)
         const checkInDateTime = new Date(year, month - 1, day, inHour, inMinute);
         const checkOutDateTime = new Date(year, month - 1, day, outHour, outMinute);
 
@@ -86,22 +125,39 @@ export default function AttendancePage() {
           const minutes = diffMins % 60;
           return `${hours} jam ${minutes} mnt`;
         }
-        return 'Invalid'; // Checkout before checkin
+        return 'Invalid';
       } catch (e) {
-        return 'Error'; // Error parsing
+        return 'Error';
       }
     }
     return '-';
   };
 
-  const attendanceStats = {
-    onTime: attendanceLog.filter(e => e.status === 'On Time' && e.checkInTime).length,
-    late: attendanceLog.filter(e => e.status === 'Late').length,
-    absent: attendanceLog.filter(e => e.status === 'Absent').length,
-  };
-  const totalDaysWithAttendance = attendanceLog.filter(e => e.checkInTime).length; // Count days with at least a check-in
-  const attendanceRate = totalDaysWithAttendance > 0 ? ((attendanceStats.onTime + attendanceStats.late) / totalDaysWithAttendance * 100).toFixed(1) : 0;
+  const attendanceStats = useMemo(() => {
+    if (!isMounted) return { onTime: 0, late: 0, absent: 0 }; 
+    return {
+      onTime: attendanceLog.filter(e => e.status === 'On Time' && e.checkInTime).length,
+      late: attendanceLog.filter(e => e.status === 'Late').length,
+      absent: attendanceLog.filter(e => e.status === 'Absent' && !e.checkInTime).length, // Ensure absent also considers no check-in
+    };
+  }, [attendanceLog, isMounted]);
+  
+  const totalDaysWithAttendanceRecord = useMemo(() => {
+     if (!isMounted) return 0;
+     // Count days where there's a check-in OR explicitly marked as absent
+     return attendanceLog.filter(e => e.checkInTime || e.status === 'Absent').length;
+  }, [attendanceLog, isMounted]);
 
+  const attendanceRate = useMemo(() => {
+    if (!isMounted || totalDaysWithAttendanceRecord === 0) return '0';
+    const presentOrLate = attendanceLog.filter(e => e.checkInTime && (e.status === 'On Time' || e.status === 'Late')).length;
+    return ((presentOrLate / totalDaysWithAttendanceRecord) * 100).toFixed(1);
+  }, [attendanceLog, totalDaysWithAttendanceRecord, isMounted]);
+
+
+  if (!isMounted) {
+    return <div className="flex h-screen items-center justify-center">Loading...</div>;
+  }
 
   return (
     <div className="space-y-6">
