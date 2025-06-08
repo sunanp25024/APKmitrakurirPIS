@@ -43,6 +43,7 @@ export default function DashboardPage() {
   const [isScanDialogOpen, setIsScanDialogOpen] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const { toast } = useToast();
   const router = useRouter();
@@ -52,44 +53,73 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (isScanDialogOpen) {
-      const getCameraPermission = async () => {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          console.error('Camera API not supported.');
-          setHasCameraPermission(false);
-          toast({
-            variant: 'destructive',
-            title: 'Kamera Tidak Didukung',
-            description: 'Browser Anda tidak mendukung akses kamera.',
-          });
-          return;
-        }
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-          setHasCameraPermission(true);
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-          }
-        } catch (error) {
-          console.error('Error accessing camera:', error);
-          setHasCameraPermission(false);
-          toast({
-            variant: 'destructive',
-            title: 'Akses Kamera Ditolak',
-            description: 'Mohon izinkan akses kamera di pengaturan browser Anda. Jika sudah, coba muat ulang halaman.',
-          });
-        }
-      };
-      getCameraPermission();
+    const getCameraPermission = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.error('Camera API not supported.');
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Kamera Tidak Didukung',
+          description: 'Browser Anda tidak mendukung akses kamera.',
+        });
+        return;
+      }
 
-      return () => {
-        if (videoRef.current && videoRef.current.srcObject) {
-          const stream = videoRef.current.srcObject as MediaStream;
-          stream.getTracks().forEach(track => track.stop());
-          videoRef.current.srcObject = null;
+      let stream: MediaStream | null = null;
+      try {
+        // Try for rear camera first (exact)
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
+      } catch (err) {
+        console.warn("Could not get rear camera (exact), trying ideal:", err);
+        try {
+          // Try for rear camera (ideal)
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        } catch (err2) {
+          console.warn("Could not get rear camera (ideal), trying any camera:", err2);
+          try {
+            // Fallback to any camera
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          } catch (finalError) {
+            console.error('Error accessing any camera:', finalError);
+            setHasCameraPermission(false);
+            toast({
+              variant: 'destructive',
+              title: 'Akses Kamera Ditolak',
+              description: 'Mohon izinkan akses kamera di pengaturan browser Anda. Jika sudah, coba muat ulang halaman.',
+            });
+            return;
+          }
         }
-      };
+      }
+
+      setHasCameraPermission(true);
+      streamRef.current = stream; // Store stream in ref
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    };
+
+    if (isScanDialogOpen) {
+      getCameraPermission();
+    } else {
+      // Cleanup when dialog is closed
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      setHasCameraPermission(null); // Reset permission status
     }
+
+    return () => {
+      // Ensure cleanup on component unmount or if dialog closes unexpectedly
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+      }
+    };
   }, [isScanDialogOpen, toast]);
 
   const handleDailyInputChange = () => {
@@ -273,7 +303,7 @@ export default function DashboardPage() {
         
         <Dialog open={isScanDialogOpen} onOpenChange={setIsScanDialogOpen}>
           <DialogTrigger asChild>
-            <Button variant="outline" className="md:col-span-1 h-full text-lg flex flex-col items-center justify-center p-4 hover:bg-primary/10" onClick={() => setIsScanDialogOpen(true)} disabled={!isDailyInputSubmitted}>
+            <Button variant="outline" className="md:col-span-1 h-full text-lg flex flex-col items-center justify-center p-4 hover:bg-primary/10" disabled={!isDailyInputSubmitted}>
               <ScanLine className="h-12 w-12 text-primary mb-2" />
               Input/Scan Resi ({packages.length}/{isDailyInputSubmitted ? totalPackagesCarried : '...'})
             </Button>
@@ -297,12 +327,12 @@ export default function DashboardPage() {
                     </AlertDescription>
                   </Alert>
                 )}
-                 {hasCameraPermission === null && (
+                 {hasCameraPermission === null && videoRef.current?.srcObject === null && ( // Show only if permission not yet granted AND video not active
                     <Alert variant="default">
                         <Camera className="h-4 w-4" />
                         <AlertTitle>Menunggu Izin Kamera...</AlertTitle>
                         <AlertDescription>
-                            Izinkan aplikasi untuk menggunakan kamera Anda.
+                            Izinkan aplikasi untuk menggunakan kamera Anda. Akan dicoba akses kamera belakang terlebih dahulu.
                         </AlertDescription>
                     </Alert>
                 )}
@@ -629,3 +659,4 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
+
