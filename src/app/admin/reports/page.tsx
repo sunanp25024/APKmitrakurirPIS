@@ -6,8 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, Download, MapPin, Globe, Activity } from 'lucide-react';
-import type { AdminCourierDailySummary, User as CourierUser } from '@/types'; // Removed AdminDeliveryTimeDataPoint as it's generated inside
+import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, Download, MapPin, Globe, Activity, Map } from 'lucide-react'; // Added Map icon
+import type { AdminCourierDailySummary, User as CourierUser } from '@/types';
 import { mockAdminCourierSummaries as initialCourierSummaries, mockUsers } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -48,21 +48,6 @@ export default function AdminReportsPage() {
   const [selectedWorkLocation, setSelectedWorkLocation] = useState<string>("all");
   const { toast } = useToast();
 
-  // Regenerate deliveryTimeData to be deterministic or based on current filters if needed
-   const deliveryTimeData = useMemo(() => {
-    return Array.from({ length: 10 }, (_, i) => {
-      const hour = 9 + i;
-      // Example: make delivered packages somewhat related to total packages of filtered couriers
-      // This is a simple example; a real app would fetch this data
-      const baseDeliveries = filteredCourierSummaries.reduce((acc, curr) => acc + curr.packagesDelivered, 0) / 10;
-      const deliveredPackages = Math.max(5, Math.floor(baseDeliveries * (0.5 + ((hour + i*2) % 10) / 10) )); // Make it vary per hour
-      return {
-        hour: `${String(hour).padStart(2, '0')}:00`,
-        delivered: deliveredPackages > 0 ? deliveredPackages : 5 + ((hour + i*2) % 15) , // Ensure some data if base is 0
-      };
-    });
-  }, [/*filteredCourierSummaries*/]); // Dependency on filteredCourierSummaries removed for now to avoid complex loops if stats are not ready.
-
   const wilayahOptions = useMemo(() => {
     const wilayahs = new Set(mockUsers.map(user => user.wilayah).filter(Boolean));
     return ["all", ...Array.from(wilayahs).sort()];
@@ -91,8 +76,6 @@ export default function AdminReportsPage() {
 
   const filteredCourierSummaries = useMemo(() => {
     return initialCourierSummaries.filter(summary => {
-      // const matchesDate = !selectedDate || summary.date === format(selectedDate, "yyyy-MM-dd"); // summary.date does not exist on AdminCourierDailySummary
-
       const matchesSearch = searchTerm.trim() === "" ||
         summary.courierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         summary.courierId.toLowerCase().includes(searchTerm.toLowerCase());
@@ -100,10 +83,30 @@ export default function AdminReportsPage() {
       const matchesWilayah = selectedWilayah === "all" || summary.wilayah === selectedWilayah;
       const matchesArea = selectedArea === "all" || summary.area === selectedArea;
       const matchesWorkLocation = selectedWorkLocation === "all" || summary.workLocation === selectedWorkLocation;
-
+      
+      // Note: Date filter is not applied here as initialCourierSummaries is not date-specific per entry.
+      // If date filtering on summaries is needed, summary objects would need a 'date' field.
       return matchesSearch && matchesWilayah && matchesArea && matchesWorkLocation;
     });
-  }, [searchTerm, selectedWilayah, selectedArea, selectedWorkLocation, selectedDate]);
+  }, [searchTerm, selectedWilayah, selectedArea, selectedWorkLocation]);
+
+
+  const deliveryTimeData = useMemo(() => {
+    return Array.from({ length: 10 }, (_, i) => {
+      const hour = 9 + i;
+      const totalDeliveredInSummaries = filteredCourierSummaries.reduce((acc, curr) => acc + curr.packagesDelivered, 0);
+      const baseDeliveries = filteredCourierSummaries.length > 0 ? totalDeliveredInSummaries / 10 : 0;
+      
+      // Ensure deliveredPackagesForHour is at least 5, and scales with baseDeliveries
+      const calculatedPackages = Math.floor(baseDeliveries * (0.5 + ((hour + i*2) % 10) / 10) );
+      const deliveredPackagesForHour = Math.max(5, calculatedPackages);
+
+      return {
+        hour: `${String(hour).padStart(2, '0')}:00`,
+        delivered: deliveredPackagesForHour,
+      };
+    });
+  }, [filteredCourierSummaries]);
 
   const dynamicOverallStats = useMemo(() => {
     const activeCouriersInFilter = mockUsers.filter(user =>
@@ -119,14 +122,14 @@ export default function AdminReportsPage() {
     const totalDelivered = currentSummaries.reduce((sum, s) => sum + s.packagesDelivered, 0);
     const totalFailedOrReturned = currentSummaries.reduce((sum, s) => sum + s.packagesFailedOrReturned, 0);
 
-    const attemptedDeliveries = totalDelivered + totalFailedOrReturned; // Consider only packages that had an attempt
+    const attemptedDeliveries = totalDelivered + totalFailedOrReturned;
     const successRate = attemptedDeliveries > 0 ? (totalDelivered / attemptedDeliveries) * 100 : 0;
 
     return {
       totalActiveCouriers: activeCouriersInFilter,
-      totalPackagesToday: totalPackages, // Total packages assigned/carried
+      totalPackagesToday: totalPackages,
       totalDeliveredToday: totalDelivered,
-      totalPendingReturnToday: totalFailedOrReturned, // This now correctly sums failed/returned from summaries
+      totalPendingReturnToday: totalFailedOrReturned,
       overallSuccessRateToday: successRate,
     };
   }, [selectedWilayah, selectedArea, selectedWorkLocation, filteredCourierSummaries]);
@@ -146,13 +149,13 @@ export default function AdminReportsPage() {
   
   const handleWilayahChange = (value: string) => {
     setSelectedWilayah(value);
-    setSelectedArea("all"); // Reset area when wilayah changes
-    setSelectedWorkLocation("all"); // Reset work location
+    setSelectedArea("all");
+    setSelectedWorkLocation("all");
   };
 
   const handleAreaChange = (value: string) => {
     setSelectedArea(value);
-    setSelectedWorkLocation("all"); // Reset work location when area changes
+    setSelectedWorkLocation("all");
   };
 
   const handleDownloadReport = () => {
@@ -257,7 +260,7 @@ export default function AdminReportsPage() {
               </Select>
             </div>
 
-            <div className="lg:col-span-2"> {/* Make search input wider on larger screens */}
+            <div className="lg:col-span-2"> 
               <label htmlFor="search-courier" className="text-sm font-medium mb-1 block">Cari ID/Nama Kurir</label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -315,7 +318,7 @@ export default function AdminReportsPage() {
               <BarChart data={[{name: 'Target Harian', value: 50 * Math.max(1,dynamicOverallStats.totalActiveCouriers) }, {name: 'Realisasi Terkirim', value: dynamicOverallStats.totalDeliveredToday}]}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" />
-                <YAxis />
+                <YAxis allowDecimals={false}/>
                 <Tooltip />
                 <Legend />
                 <Bar dataKey="value" fill="hsl(var(--chart-2))" name="Jumlah Paket" />
