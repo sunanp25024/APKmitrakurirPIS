@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, MapPin } from 'lucide-react';
+import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, MapPin, Download } from 'lucide-react';
 import type { AdminOverallStats, AdminCourierDailySummary, AdminDeliveryTimeDataPoint } from '@/types';
 import { mockAdminOverallStats, mockAdminCourierSummaries as initialCourierSummaries, mockAdminDeliveryTimeData } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from '@/hooks/use-toast';
 
 const COLORS_REPORTS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))', 'hsl(var(--chart-4))', 'hsl(var(--chart-5))'];
 
@@ -46,6 +47,7 @@ export default function AdminReportsPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedLocation, setSelectedLocation] = useState<string>("all");
+  const { toast } = useToast();
 
   const workLocations = useMemo(() => {
     const locations = new Set(initialCourierSummaries.map(summary => summary.workLocation));
@@ -60,15 +62,29 @@ export default function AdminReportsPage() {
       
       const matchesLocation = selectedLocation === "all" || summary.workLocation === selectedLocation;
       
-      // Date filtering for mock data: 
-      // For this prototype, we assume mockAdminCourierSummaries is for the "current" day.
-      // A real implementation would fetch data for the selectedDate.
-      // Here, selectedDate mainly serves as a UI demonstration.
-      // You could extend mockData to have multiple days of summaries if needed.
-
       return matchesSearch && matchesLocation;
     });
   }, [courierSummaries, searchTerm, selectedLocation, selectedDate]);
+
+  const handleDownloadReport = () => {
+    let reportDescription = `Laporan Ringkasan Kurir Harian`;
+    if (selectedLocation !== "all") {
+      reportDescription += ` untuk Area ${selectedLocation}`;
+    } else {
+      reportDescription += ` (Keseluruhan Area)`;
+    }
+    if (searchTerm.trim() !== "") {
+      reportDescription += ` dengan filter pencarian: "${searchTerm.trim()}"`;
+    }
+    reportDescription += ` per tanggal ${selectedDate ? format(selectedDate, "PPP") : 'Data Terkini'}.`;
+
+    toast({
+      title: "Simulasi Download Laporan",
+      description: `${reportDescription} sedang diunduh dalam format CSV.`,
+      duration: 5000,
+    });
+    console.log("Data yang akan diunduh (simulasi):", filteredCourierSummaries);
+  };
 
 
   return (
@@ -83,60 +99,68 @@ export default function AdminReportsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard icon={Users} title="Total Kurir Aktif" value={overallStats.totalActiveCouriers} />
         <StatCard icon={Package} title="Total Paket Hari Ini" value={overallStats.totalPackagesToday} />
-        <StatCard icon={PackageCheck} title="Paket Terkirim Hari Ini" value={overallStats.totalDeliveredToday} />
+        <StatCard icon={PackageCheck} title="Total Terkirim Hari Ini" value={overallStats.totalDeliveredToday} />
         <StatCard icon={Percent} title="Rate Sukses Keseluruhan (Hari Ini)" value={`${overallStats.overallSuccessRateToday.toFixed(1)}%`} description="Dari paket yang sudah coba diantar" />
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Filter Laporan & Pencarian Kurir</CardTitle>
+          <CardTitle>Filter & Aksi Laporan</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
-            <label htmlFor="date-filter" className="text-sm font-medium mb-1 block">Tanggal Laporan</label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button id="date-filter" variant={"outline"} className="w-full justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {selectedDate ? format(selectedDate, "PPP") : <span>Pilih tanggal</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  initialFocus
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div className="flex-1 min-w-[200px]">
-            <label htmlFor="location-filter" className="text-sm font-medium mb-1 block">Lokasi Kerja</label>
-            <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-              <SelectTrigger id="location-filter" className="w-full">
-                <SelectValue placeholder="Semua Lokasi" />
-              </SelectTrigger>
-              <SelectContent>
-                {workLocations.map(loc => (
-                  <SelectItem key={loc} value={loc}>{loc === "all" ? "Semua Lokasi" : loc}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex-1 min-w-[240px]">
-            <label htmlFor="search-courier" className="text-sm font-medium mb-1 block">Cari ID/Nama Kurir</label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                id="search-courier"
-                type="search"
-                placeholder="Ketik ID atau Nama Kurir..."
-                className="pl-8 w-full"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+        <CardContent className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-end">
+            <div className="flex-1 min-w-[200px]">
+              <label htmlFor="date-filter" className="text-sm font-medium mb-1 block">Tanggal Laporan</label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button id="date-filter" variant={"outline"} className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? format(selectedDate, "PPP") : <span>Pilih tanggal</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={setSelectedDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
+            <div className="flex-1 min-w-[200px]">
+              <label htmlFor="location-filter" className="text-sm font-medium mb-1 block">Lokasi Kerja</label>
+              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
+                <SelectTrigger id="location-filter" className="w-full">
+                  <SelectValue placeholder="Semua Lokasi" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workLocations.map(loc => (
+                    <SelectItem key={loc} value={loc}>{loc === "all" ? "Semua Lokasi" : loc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex-1 min-w-[240px]">
+              <label htmlFor="search-courier" className="text-sm font-medium mb-1 block">Cari ID/Nama Kurir</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  id="search-courier"
+                  type="search"
+                  placeholder="Ketik ID atau Nama Kurir..."
+                  className="pl-8 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <div>
+            <Button onClick={handleDownloadReport} variant="default">
+              <Download className="mr-2 h-4 w-4" />
+              Download Laporan (CSV - Simulasi)
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -224,3 +248,6 @@ export default function AdminReportsPage() {
     </div>
   );
 }
+
+
+    
