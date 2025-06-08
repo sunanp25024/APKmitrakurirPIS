@@ -10,8 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { format } from "date-fns"
-import { Calendar as CalendarIcon, LogIn, LogOut, BarChart3, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { format, differenceInMinutes } from "date-fns"
+import { Calendar as CalendarIcon, LogIn, LogOut, BarChart3, CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function AttendancePage() {
@@ -69,13 +69,39 @@ export default function AttendancePage() {
     toast({ title: "Check-out Berhasil", description: `Anda berhasil check-out pukul ${timeFormatted}.` });
   };
 
+  const calculateWorkingHours = (checkInTime?: string, checkOutTime?: string, entryDate?: string): string => {
+    if (checkInTime && checkOutTime && entryDate) {
+      try {
+        const [year, month, day] = entryDate.split('-').map(Number);
+        const [inHour, inMinute] = checkInTime.split(':').map(Number);
+        const [outHour, outMinute] = checkOutTime.split(':').map(Number);
+
+        // JavaScript Date months are 0-indexed (0 for January, 11 for December)
+        const checkInDateTime = new Date(year, month - 1, day, inHour, inMinute);
+        const checkOutDateTime = new Date(year, month - 1, day, outHour, outMinute);
+
+        if (checkOutDateTime > checkInDateTime) {
+          const diffMins = differenceInMinutes(checkOutDateTime, checkInDateTime);
+          const hours = Math.floor(diffMins / 60);
+          const minutes = diffMins % 60;
+          return `${hours} jam ${minutes} mnt`;
+        }
+        return 'Invalid'; // Checkout before checkin
+      } catch (e) {
+        return 'Error'; // Error parsing
+      }
+    }
+    return '-';
+  };
+
   const attendanceStats = {
     onTime: attendanceLog.filter(e => e.status === 'On Time' && e.checkInTime).length,
     late: attendanceLog.filter(e => e.status === 'Late').length,
     absent: attendanceLog.filter(e => e.status === 'Absent').length,
   };
-  const totalDays = attendanceLog.length;
-  const attendanceRate = totalDays > 0 ? ((attendanceStats.onTime + attendanceStats.late) / totalDays * 100).toFixed(1) : 0;
+  const totalDaysWithAttendance = attendanceLog.filter(e => e.checkInTime).length; // Count days with at least a check-in
+  const attendanceRate = totalDaysWithAttendance > 0 ? ((attendanceStats.onTime + attendanceStats.late) / totalDaysWithAttendance * 100).toFixed(1) : 0;
+
 
   return (
     <div className="space-y-6">
@@ -156,6 +182,7 @@ export default function AttendancePage() {
                 <TableHead>Tanggal</TableHead>
                 <TableHead>Check-in</TableHead>
                 <TableHead>Check-out</TableHead>
+                <TableHead>Jam Kerja</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -168,15 +195,16 @@ export default function AttendancePage() {
                   <TableCell>{format(new Date(entry.date), "dd MMM yyyy")}</TableCell>
                   <TableCell>{entry.checkInTime || '-'}</TableCell>
                   <TableCell>{entry.checkOutTime || '-'}</TableCell>
+                  <TableCell>{calculateWorkingHours(entry.checkInTime, entry.checkOutTime, entry.date)}</TableCell>
                   <TableCell>
                     <Badge variant={
                       entry.status === 'On Time' ? 'default' :
-                      entry.status === 'Late' ? 'destructive' : 'secondary' // 'default' for success, 'destructive' for error/late, 'secondary' for neutral/absent
+                      entry.status === 'Late' ? 'destructive' : 'secondary' 
                     }
                     className={
                         entry.status === 'On Time' ? 'bg-green-500 hover:bg-green-600' : 
                         entry.status === 'Late' ? 'bg-yellow-500 hover:bg-yellow-600' : 
-                        'bg-red-500 hover:bg-red-600'
+                        entry.status === 'Absent' ? 'bg-red-500 hover:bg-red-600' : ''
                     }
                     >
                       {entry.status}
