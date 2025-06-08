@@ -29,6 +29,32 @@ export const mockUsers: User[] = [
     registeredRecipientName: 'SUNAN ISKANDAR',
     avatarUrl: 'https://placehold.co/100x100.png?text=SI',
     password: 'sunan123'
+  },
+  {
+    id: 'BUDIHUBSEL',
+    fullName: 'Budi Santoso',
+    workLocation: 'HUB JAKSEL',
+    joinDate: '2023-11-05',
+    jobTitle: 'Mitra Kurir Senior',
+    contractStatus: 'Aktif',
+    accountNumber: '0987654321',
+    bankName: 'Bank Mandiri',
+    registeredRecipientName: 'Budi Santoso',
+    avatarUrl: 'https://placehold.co/100x100.png?text=BS',
+    password: 'budi123'
+  },
+   {
+    id: 'CITRAHUBBAR',
+    fullName: 'Citra Lestari',
+    workLocation: 'HUB JAKBAR',
+    joinDate: '2024-02-20',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1122334455',
+    bankName: 'Bank BRI',
+    registeredRecipientName: 'Citra Lestari',
+    avatarUrl: 'https://placehold.co/100x100.png?text=CL',
+    password: 'citra123'
   }
 ];
 
@@ -71,11 +97,25 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
 
 // For Admin Reports Page
 export const mockAdminOverallStats: AdminOverallStats = {
-  totalActiveCouriers: mockUsers.length, // Assuming all mock users are active for simplicity
-  totalPackagesToday: 150,
-  totalDeliveredToday: 120,
-  totalPendingReturnToday: 25, // 150 - 120 delivered - 5 still in process
-  overallSuccessRateToday: (120 / (120 + 25)) * 100, // Based on resolved packages
+  totalActiveCouriers: mockUsers.length, 
+  totalPackagesToday: mockUsers.reduce((acc, user, index) => acc + (20 + (index * 5) % 15), 0), // Sum of packagesCarried from summaries
+  totalDeliveredToday: mockUsers.reduce((acc, user, index) => {
+      const carried = 20 + (index * 5) % 15;
+      return acc + Math.floor(carried * (0.75 + (index % 3) * 0.05));
+  }, 0), // Sum of packagesDelivered from summaries
+  totalPendingReturnToday: mockUsers.reduce((acc, user, index) => {
+      const carried = 20 + (index * 5) % 15;
+      const delivered = Math.floor(carried * (0.75 + (index % 3) * 0.05));
+      return acc + (carried - delivered);
+  }, 0), // Sum of failedOrReturned
+  overallSuccessRateToday: (() => {
+      const totalDelivered = mockUsers.reduce((acc, user, index) => {
+          const carried = 20 + (index * 5) % 15;
+          return acc + Math.floor(carried * (0.75 + (index % 3) * 0.05));
+      }, 0);
+      const totalAttempted = mockUsers.reduce((acc, user, index) => acc + (20 + (index * 5) % 15),0);
+      return totalAttempted > 0 ? (totalDelivered / totalAttempted) * 100 : 0;
+  })(),
 };
 
 export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.map((user, index) => {
@@ -85,6 +125,7 @@ export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.m
   return {
     courierId: user.id,
     courierName: user.fullName,
+    workLocation: user.workLocation, // Added workLocation
     packagesCarried: carried,
     packagesDelivered: delivered,
     packagesFailedOrReturned: failed,

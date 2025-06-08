@@ -61,6 +61,7 @@ export interface AdminOverallStats {
 export interface AdminCourierDailySummary {
   courierId: string;
   courierName: string;
+  workLocation: string; // Added workLocation
   packagesCarried: number;
   packagesDelivered: number;
   packagesFailedOrReturned: number;
@@ -72,3 +73,4 @@ export interface AdminDeliveryTimeDataPoint {
   hour: string; // e.g., "09:00", "10:00"
   delivered: number;
 }
+
