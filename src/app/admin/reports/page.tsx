@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from '@/components/ui/badge';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
-import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, MapPin, Download } from 'lucide-react';
-import type { AdminCourierDailySummary, AdminDeliveryTimeDataPoint, User as CourierUser } from '@/types'; // Added CourierUser
-import { mockAdminCourierSummaries as initialCourierSummaries, mockAdminDeliveryTimeData, mockUsers } from '@/lib/mockData'; // mockAdminOverallStats removed, mockUsers added
+import { Users, Package, PackageCheck, Percent, Calendar as CalendarIcon, Search, MapPin, Download, Map, Activity, Globe } from 'lucide-react';
+import type { AdminCourierDailySummary, AdminDeliveryTimeDataPoint, User as CourierUser } from '@/types';
+import { mockAdminCourierSummaries as initialCourierSummaries, mockAdminDeliveryTimeData, mockUsers } from '@/lib/mockData';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -41,45 +41,71 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, title, value, descripti
 
 export default function AdminReportsPage() {
   const deliveryTimeData: AdminDeliveryTimeDataPoint[] = mockAdminDeliveryTimeData;
-  
-  const [courierSummaries, setCourierSummaries] = useState<AdminCourierDailySummary[]>(initialCourierSummaries);
+
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [selectedLocation, setSelectedLocation] = useState<string>("all");
+  const [selectedWilayah, setSelectedWilayah] = useState<string>("all");
+  const [selectedArea, setSelectedArea] = useState<string>("all");
+  const [selectedWorkLocation, setSelectedWorkLocation] = useState<string>("all");
   const { toast } = useToast();
 
-  const workLocations = useMemo(() => {
-    const locations = new Set(initialCourierSummaries.map(summary => summary.workLocation));
-    return ["all", ...Array.from(locations)];
+  const wilayahOptions = useMemo(() => {
+    const wilayahs = new Set(mockUsers.map(user => user.wilayah));
+    return ["all", ...Array.from(wilayahs)];
   }, []);
 
+  const areaOptions = useMemo(() => {
+    let filteredUsers = mockUsers;
+    if (selectedWilayah !== "all") {
+      filteredUsers = filteredUsers.filter(user => user.wilayah === selectedWilayah);
+    }
+    const areas = new Set(filteredUsers.map(user => user.area));
+    return ["all", ...Array.from(areas)];
+  }, [selectedWilayah]);
+
+  const workLocationOptions = useMemo(() => {
+    let filteredUsers = mockUsers;
+    if (selectedWilayah !== "all") {
+      filteredUsers = filteredUsers.filter(user => user.wilayah === selectedWilayah);
+    }
+    if (selectedArea !== "all") {
+      filteredUsers = filteredUsers.filter(user => user.area === selectedArea);
+    }
+    const locations = new Set(filteredUsers.map(user => user.workLocation));
+    return ["all", ...Array.from(locations)];
+  }, [selectedWilayah, selectedArea]);
+
   const filteredCourierSummaries = useMemo(() => {
-    return initialCourierSummaries.filter(summary => { // Filter from initialCourierSummaries
+    return initialCourierSummaries.filter(summary => {
       const matchesDate = !selectedDate || summary.date === format(selectedDate, "yyyy-MM-dd"); // Assuming summaries might have a date field in future
-      
+
       const matchesSearch = searchTerm.trim() === "" ||
         summary.courierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
         summary.courierId.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesLocation = selectedLocation === "all" || summary.workLocation === selectedLocation;
-      
-      // For now, we'll ignore date filter on summary data as it's not structured per date in mock
-      return matchesSearch && matchesLocation; 
+
+      const matchesWilayah = selectedWilayah === "all" || summary.wilayah === selectedWilayah;
+      const matchesArea = selectedArea === "all" || summary.area === selectedArea;
+      const matchesWorkLocation = selectedWorkLocation === "all" || summary.workLocation === selectedWorkLocation;
+
+      // Date filter on summary data currently not strictly applied as mock data isn't daily dynamic for summaries
+      return matchesSearch && matchesWilayah && matchesArea && matchesWorkLocation;
     });
-  }, [searchTerm, selectedLocation, selectedDate]);
+  }, [searchTerm, selectedWilayah, selectedArea, selectedWorkLocation, selectedDate]);
 
   const dynamicOverallStats = useMemo(() => {
-    const activeCouriersInFilter = mockUsers.filter(user => 
-      user.contractStatus === 'Aktif' && 
-      (selectedLocation === "all" || user.workLocation === selectedLocation)
+    const activeCouriersInFilter = mockUsers.filter(user =>
+      user.contractStatus === 'Aktif' &&
+      (selectedWilayah === "all" || user.wilayah === selectedWilayah) &&
+      (selectedArea === "all" || user.area === selectedArea) &&
+      (selectedWorkLocation === "all" || user.workLocation === selectedWorkLocation)
     ).length;
 
-    const currentSummaries = filteredCourierSummaries; // Use already filtered summaries for package stats
+    const currentSummaries = filteredCourierSummaries;
 
     const totalPackages = currentSummaries.reduce((sum, s) => sum + s.packagesCarried, 0);
     const totalDelivered = currentSummaries.reduce((sum, s) => sum + s.packagesDelivered, 0);
     const totalFailedOrReturned = currentSummaries.reduce((sum, s) => sum + s.packagesFailedOrReturned, 0);
-    
+
     const attemptedDeliveries = totalDelivered + totalFailedOrReturned;
     const successRate = attemptedDeliveries > 0 ? (totalDelivered / attemptedDeliveries) * 100 : 0;
 
@@ -87,16 +113,46 @@ export default function AdminReportsPage() {
       totalActiveCouriers: activeCouriersInFilter,
       totalPackagesToday: totalPackages,
       totalDeliveredToday: totalDelivered,
-      totalPendingReturnToday: totalFailedOrReturned, // For consistency if needed elsewhere
+      totalPendingReturnToday: totalFailedOrReturned,
       overallSuccessRateToday: successRate,
     };
-  }, [selectedLocation, filteredCourierSummaries]);
+  }, [selectedWilayah, selectedArea, selectedWorkLocation, filteredCourierSummaries]);
 
+  const getFilterDescription = () => {
+    let desc = "Nasional";
+    if (selectedWilayah !== "all") {
+      desc = `Wilayah ${selectedWilayah}`;
+      if (selectedArea !== "all") {
+        desc += ` / Area ${selectedArea}`;
+        if (selectedWorkLocation !== "all") {
+          desc += ` / Lokasi ${selectedWorkLocation}`;
+        }
+      }
+    }
+    return desc;
+  };
+  
+  const handleWilayahChange = (value: string) => {
+    setSelectedWilayah(value);
+    setSelectedArea("all");
+    setSelectedWorkLocation("all");
+  };
+
+  const handleAreaChange = (value: string) => {
+    setSelectedArea(value);
+    setSelectedWorkLocation("all");
+  };
 
   const handleDownloadReport = () => {
     let reportDescription = `Laporan Ringkasan Kurir Harian`;
-    if (selectedLocation !== "all") {
-      reportDescription += ` untuk Area ${selectedLocation}`;
+    if (selectedWilayah !== "all") {
+      reportDescription += ` untuk Wilayah ${selectedWilayah}`;
+      if (selectedArea !== "all") {
+        reportDescription += `, Area ${selectedArea}`;
+        if (selectedWorkLocation !== "all") {
+          reportDescription += `, Lokasi Kerja ${selectedWorkLocation}`;
+        }
+      }
     } else {
       reportDescription += ` (Keseluruhan Area)`;
     }
@@ -124,10 +180,10 @@ export default function AdminReportsPage() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={Users} title="Total Kurir Aktif" value={dynamicOverallStats.totalActiveCouriers} description={selectedLocation === "all" ? "Nasional" : `Area ${selectedLocation}`} />
-        <StatCard icon={Package} title="Total Paket Hari Ini" value={dynamicOverallStats.totalPackagesToday} description={selectedLocation === "all" ? "Nasional" : `Area ${selectedLocation}`} />
-        <StatCard icon={PackageCheck} title="Total Terkirim Hari Ini" value={dynamicOverallStats.totalDeliveredToday} description={selectedLocation === "all" ? "Nasional" : `Area ${selectedLocation}`} />
-        <StatCard icon={Percent} title="Rate Sukses (Hari Ini)" value={`${dynamicOverallStats.overallSuccessRateToday.toFixed(1)}%`} description={selectedLocation === "all" ? "Nasional, dari paket coba antar" : `Area ${selectedLocation}, dari paket coba antar`} />
+        <StatCard icon={Users} title="Total Kurir Aktif" value={dynamicOverallStats.totalActiveCouriers} description={getFilterDescription()} />
+        <StatCard icon={Package} title="Total Paket Hari Ini" value={dynamicOverallStats.totalPackagesToday} description={getFilterDescription()} />
+        <StatCard icon={PackageCheck} title="Total Terkirim Hari Ini" value={dynamicOverallStats.totalDeliveredToday} description={getFilterDescription()} />
+        <StatCard icon={Percent} title="Rate Sukses (Hari Ini)" value={`${dynamicOverallStats.overallSuccessRateToday.toFixed(1)}%`} description={`${getFilterDescription()}, dari paket coba antar`} />
       </div>
 
       <Card>
@@ -135,8 +191,8 @@ export default function AdminReportsPage() {
           <CardTitle>Filter & Aksi Laporan</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-col md:flex-row gap-4 items-end">
-            <div className="flex-1 min-w-[200px]">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+            <div>
               <label htmlFor="date-filter" className="text-sm font-medium mb-1 block">Tanggal Laporan</label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -151,25 +207,54 @@ export default function AdminReportsPage() {
                     selected={selectedDate}
                     onSelect={setSelectedDate}
                     initialFocus
-                    // disabled={(date) => date > new Date() || date < new Date("2020-01-01")} // Example disabled range
                   />
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="flex-1 min-w-[200px]">
-              <label htmlFor="location-filter" className="text-sm font-medium mb-1 block">Lokasi Kerja</label>
-              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                <SelectTrigger id="location-filter" className="w-full">
-                  <SelectValue placeholder="Semua Lokasi" />
+            
+            <div>
+              <label htmlFor="wilayah-filter" className="text-sm font-medium mb-1 block">Wilayah</label>
+              <Select value={selectedWilayah} onValueChange={handleWilayahChange}>
+                <SelectTrigger id="wilayah-filter" className="w-full">
+                  <SelectValue placeholder="Semua Wilayah" />
                 </SelectTrigger>
                 <SelectContent>
-                  {workLocations.map(loc => (
-                    <SelectItem key={loc} value={loc}>{loc === "all" ? "Semua Lokasi" : loc}</SelectItem>
+                  {wilayahOptions.map(wil => (
+                    <SelectItem key={wil} value={wil}>{wil === "all" ? "Semua Wilayah" : wil}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex-1 min-w-[240px]">
+
+            <div>
+              <label htmlFor="area-filter" className="text-sm font-medium mb-1 block">Area</label>
+              <Select value={selectedArea} onValueChange={handleAreaChange} disabled={selectedWilayah === "all" && areaOptions.length <=1}>
+                <SelectTrigger id="area-filter" className="w-full">
+                  <SelectValue placeholder="Semua Area" />
+                </SelectTrigger>
+                <SelectContent>
+                  {areaOptions.map(area => (
+                    <SelectItem key={area} value={area}>{area === "all" ? "Semua Area" : area}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <label htmlFor="worklocation-filter" className="text-sm font-medium mb-1 block">Lokasi Kerja (HUB)</label>
+              <Select value={selectedWorkLocation} onValueChange={setSelectedWorkLocation} disabled={selectedArea === "all" && workLocationOptions.length <=1}>
+                <SelectTrigger id="worklocation-filter" className="w-full">
+                  <SelectValue placeholder="Semua Lokasi Kerja" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workLocationOptions.map(loc => (
+                    <SelectItem key={loc} value={loc}>{loc === "all" ? "Semua Lokasi Kerja" : loc}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="lg:col-span-2"> {/* Make search input wider on larger screens */}
               <label htmlFor="search-courier" className="text-sm font-medium mb-1 block">Cari ID/Nama Kurir</label>
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -215,11 +300,19 @@ export default function AdminReportsPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Placeholder Grafik Lain</CardTitle>
-            <CardDescription>Misalnya: Tren Pengiriman Mingguan (Area Terfilter).</CardDescription>
+            <CardTitle>Target vs Realisasi (Contoh)</CardTitle>
+            <CardDescription>Perbandingan target pengiriman dan realisasi (data mock statis).</CardDescription>
           </CardHeader>
           <CardContent className="flex items-center justify-center h-[300px]">
-            <p className="text-muted-foreground">Grafik akan ditampilkan di sini.</p>
+             <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={[{name: 'Target', value: 5000}, {name: 'Realisasi', value: dynamicOverallStats.totalDeliveredToday}]}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="value" fill="hsl(var(--chart-2))" name="Jumlah Paket" />
+              </BarChart>
+            </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
@@ -227,7 +320,7 @@ export default function AdminReportsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Ringkasan Performa Kurir Harian</CardTitle>
-          <CardDescription>Status dan performa masing-masing kurir (hasil filter).</CardDescription>
+          <CardDescription>Status dan performa masing-masing kurir ({getFilterDescription()})</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
@@ -235,6 +328,8 @@ export default function AdminReportsPage() {
               <TableRow>
                 <TableHead>Nama Kurir</TableHead>
                 <TableHead>ID Kurir</TableHead>
+                <TableHead>Wilayah</TableHead>
+                <TableHead>Area</TableHead>
                 <TableHead>Lokasi Kerja</TableHead>
                 <TableHead>Paket Dibawa</TableHead>
                 <TableHead>Paket Terkirim</TableHead>
@@ -248,6 +343,8 @@ export default function AdminReportsPage() {
                 <TableRow key={courier.courierId}>
                   <TableCell>{courier.courierName}</TableCell>
                   <TableCell className="font-code">{courier.courierId}</TableCell>
+                  <TableCell>{courier.wilayah}</TableCell>
+                  <TableCell>{courier.area}</TableCell>
                   <TableCell>{courier.workLocation}</TableCell>
                   <TableCell>{courier.packagesCarried}</TableCell>
                   <TableCell>{courier.packagesDelivered}</TableCell>
@@ -256,12 +353,12 @@ export default function AdminReportsPage() {
                   <TableCell>
                     <Badge variant={
                       courier.status === 'Selesai' ? 'default' :
-                      courier.status === 'Aktif Mengantar' ? 'secondary' : 
+                      courier.status === 'Aktif Mengantar' ? 'secondary' :
                       courier.status === 'Belum Ada Laporan' ? 'outline' :
-                      courier.status === 'Tidak Aktif' ? 'destructive' : 'outline' // Added 'Tidak Aktif' and fallback
+                      courier.status === 'Tidak Aktif' ? 'destructive' : 'outline'
                     }
                     className={
-                        courier.status === 'Selesai' ? 'bg-green-500 hover:bg-green-600' : 
+                        courier.status === 'Selesai' ? 'bg-green-500 hover:bg-green-600' :
                         courier.status === 'Tidak Aktif' ? 'bg-red-500 hover:bg-red-600' : ''
                     }
                     >{courier.status}</Badge>
@@ -269,7 +366,7 @@ export default function AdminReportsPage() {
                 </TableRow>
               )) : (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center">Tidak ada data kurir yang cocok dengan filter.</TableCell>
+                  <TableCell colSpan={10} className="text-center">Tidak ada data kurir yang cocok dengan filter.</TableCell>
                 </TableRow>
               )}
             </TableBody>
@@ -279,6 +376,3 @@ export default function AdminReportsPage() {
     </div>
   );
 }
-    
-
-      

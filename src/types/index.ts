@@ -2,7 +2,9 @@
 export interface User {
   id: string; // ID Mitra Kurir
   fullName: string; // Nama Lengkap Mitra Kurir
-  workLocation: string; // Lokasi Kerja Mitra Kurir
+  wilayah: string; // Wilayah Operasional
+  area: string; // Area Operasional di dalam Wilayah
+  workLocation: string; // Lokasi Kerja Mitra Kurir (HUB)
   joinDate: string; // Tanggal Join Mitra
   jobTitle: string; // Jabatan Mitra
   contractStatus: string; // Status Kontrak Mitra
@@ -13,12 +15,12 @@ export interface User {
   password?: string; // For mock data simulation only
 }
 
-export type PackageStatus = 
-  | 'Proses' 
-  | 'Dalam Pengantaran' 
-  | 'Terkirim' 
-  | 'Tidak Terkirim' 
-  | 'Pending' 
+export type PackageStatus =
+  | 'Proses'
+  | 'Dalam Pengantaran'
+  | 'Terkirim'
+  | 'Tidak Terkirim'
+  | 'Pending'
   | 'Dikembalikan';
 
 export interface PackageItem {
@@ -61,16 +63,17 @@ export interface AdminOverallStats {
 export interface AdminCourierDailySummary {
   courierId: string;
   courierName: string;
-  workLocation: string; // Added workLocation
+  wilayah: string;
+  area: string;
+  workLocation: string;
   packagesCarried: number;
   packagesDelivered: number;
   packagesFailedOrReturned: number;
   successRate: number; // percentage
-  status: 'Aktif Mengantar' | 'Selesai' | 'Belum Ada Laporan';
+  status: 'Aktif Mengantar' | 'Selesai' | 'Belum Ada Laporan' | 'Tidak Aktif';
 }
 
 export interface AdminDeliveryTimeDataPoint {
   hour: string; // e.g., "09:00", "10:00"
   delivered: number;
 }
-

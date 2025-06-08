@@ -7,7 +7,9 @@ export const mockUsers: User[] = [
   {
     id: 'PISTEST2025',
     fullName: 'John Doe',
-    workLocation: 'Jakarta Pusat',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Pusat',
+    workLocation: 'HUB JAKPUS TEST',
     joinDate: '2024-01-15',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -20,8 +22,10 @@ export const mockUsers: User[] = [
   {
     id: 'SUNANJTN01',
     fullName: 'Sunan Iskandar',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Timur',
     workLocation: 'HUB JATINEGARA',
-    joinDate: '2024-03-10', // Example join date
+    joinDate: '2024-03-10',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
     accountNumber: '5530535292',
@@ -33,6 +37,8 @@ export const mockUsers: User[] = [
   {
     id: 'BUDIHUBSEL',
     fullName: 'Budi Santoso',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Selatan',
     workLocation: 'HUB JAKSEL',
     joinDate: '2023-11-05',
     jobTitle: 'Mitra Kurir Senior',
@@ -46,6 +52,8 @@ export const mockUsers: User[] = [
    {
     id: 'CITRAHUBBAR',
     fullName: 'Citra Lestari',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Barat',
     workLocation: 'HUB JAKBAR',
     joinDate: '2024-02-20',
     jobTitle: 'Mitra Kurir',
@@ -56,11 +64,12 @@ export const mockUsers: User[] = [
     avatarUrl: 'https://placehold.co/100x100.png?text=CL',
     password: 'citra123'
   },
-  // Tambahan 20 Data Dummy Kurir
   {
     id: 'AGUSJPS01',
     fullName: 'Agus Setiawan',
-    workLocation: 'HUB JAKPUS',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Pusat',
+    workLocation: 'HUB JAKPUS GAMBIR',
     joinDate: '2023-05-10',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -73,7 +82,9 @@ export const mockUsers: User[] = [
   {
     id: 'DEWIJKT02',
     fullName: 'Dewi Anggraini',
-    workLocation: 'HUB JAKTIM',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Timur',
+    workLocation: 'HUB CAKUNG',
     joinDate: '2023-06-15',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -86,7 +97,9 @@ export const mockUsers: User[] = [
   {
     id: 'EKOJKU03',
     fullName: 'Eko Prasetyo',
-    workLocation: 'HUB JAKUT',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Utara',
+    workLocation: 'HUB TJ PRIOK',
     joinDate: '2023-07-20',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Non-Aktif',
@@ -99,7 +112,9 @@ export const mockUsers: User[] = [
   {
     id: 'FITRIBKS04',
     fullName: 'Fitri Handayani',
-    workLocation: 'HUB BEKASI',
+    wilayah: 'Jawa Barat',
+    area: 'Bekasi Raya',
+    workLocation: 'HUB BEKASI KOTA',
     joinDate: '2023-08-25',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -112,7 +127,9 @@ export const mockUsers: User[] = [
   {
     id: 'GALIHTGR05',
     fullName: 'Galih Permana',
-    workLocation: 'HUB TANGERANG',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Tangerang Kota',
+    workLocation: 'HUB TANGERANG CIPONDOH',
     joinDate: '2023-09-01',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -125,7 +142,9 @@ export const mockUsers: User[] = [
   {
     id: 'HENDIDPK06',
     fullName: 'Hendi Wijaya',
-    workLocation: 'HUB DEPOK',
+    wilayah: 'Jawa Barat',
+    area: 'Depok Raya',
+    workLocation: 'HUB DEPOK MARGONDA',
     joinDate: '2023-10-05',
     jobTitle: 'Koordinator Lapangan',
     contractStatus: 'Aktif',
@@ -138,7 +157,9 @@ export const mockUsers: User[] = [
   {
     id: 'INDRAJSL07',
     fullName: 'Indra Maulana',
-    workLocation: 'HUB JAKSEL',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Selatan',
+    workLocation: 'HUB TEBET',
     joinDate: '2023-11-10',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -151,7 +172,9 @@ export const mockUsers: User[] = [
   {
     id: 'JOKOJBR08',
     fullName: 'Joko Susilo',
-    workLocation: 'HUB JAKBAR',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Barat',
+    workLocation: 'HUB KEBON JERUK',
     joinDate: '2023-12-15',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -164,7 +187,9 @@ export const mockUsers: User[] = [
   {
     id: 'KARINAJPS09',
     fullName: 'Karina Putri',
-    workLocation: 'HUB JAKPUS',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Pusat',
+    workLocation: 'HUB TANAH ABANG',
     joinDate: '2024-01-20',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -177,7 +202,9 @@ export const mockUsers: User[] = [
   {
     id: 'LUKMANJKT10',
     fullName: 'Lukman Hakim',
-    workLocation: 'HUB JAKTIM',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Timur',
+    workLocation: 'HUB KRAMAT JATI',
     joinDate: '2024-02-25',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -190,7 +217,9 @@ export const mockUsers: User[] = [
   {
     id: 'MAYABKS11',
     fullName: 'Maya Sari',
-    workLocation: 'HUB BEKASI',
+    wilayah: 'Jawa Barat',
+    area: 'Bekasi Raya',
+    workLocation: 'HUB BEKASI BARAT',
     joinDate: '2024-03-01',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Non-Aktif',
@@ -203,7 +232,9 @@ export const mockUsers: User[] = [
   {
     id: 'NANDATGR12',
     fullName: 'Nanda Pratama',
-    workLocation: 'HUB TANGERANG',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Tangerang Selatan',
+    workLocation: 'HUB SERPONG',
     joinDate: '2024-04-05',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -216,7 +247,9 @@ export const mockUsers: User[] = [
   {
     id: 'OKTADPK13',
     fullName: 'Okta Setiawan',
-    workLocation: 'HUB DEPOK',
+    wilayah: 'Jawa Barat',
+    area: 'Depok Raya',
+    workLocation: 'HUB CIMANGGIS',
     joinDate: '2024-05-10',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -229,7 +262,9 @@ export const mockUsers: User[] = [
   {
     id: 'PUTRAJSL14',
     fullName: 'Putra Dinata',
-    workLocation: 'HUB JAKSEL',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Selatan',
+    workLocation: 'HUB PASAR MINGGU',
     joinDate: '2023-04-15',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -242,7 +277,9 @@ export const mockUsers: User[] = [
   {
     id: 'RATUJBR15',
     fullName: 'Ratu Anjani',
-    workLocation: 'HUB JAKBAR',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Barat',
+    workLocation: 'HUB CENGKARENG',
     joinDate: '2023-03-20',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -255,7 +292,9 @@ export const mockUsers: User[] = [
   {
     id: 'SANDIJPS16',
     fullName: 'Sandi Kurniawan',
-    workLocation: 'HUB JAKPUS',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Pusat',
+    workLocation: 'HUB KEMAYORAN',
     joinDate: '2023-02-25',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -268,7 +307,9 @@ export const mockUsers: User[] = [
   {
     id: 'TANTRIJKT17',
     fullName: 'Tantri Melati',
-    workLocation: 'HUB JAKTIM',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Jakarta Timur',
+    workLocation: 'HUB DUREN SAWIT',
     joinDate: '2023-01-01',
     jobTitle: 'Mitra Kurir Senior',
     contractStatus: 'Aktif',
@@ -281,7 +322,9 @@ export const mockUsers: User[] = [
   {
     id: 'USMANBKS18',
     fullName: 'Usman Abidin',
-    workLocation: 'HUB BEKASI',
+    wilayah: 'Jawa Barat',
+    area: 'Bekasi Raya',
+    workLocation: 'HUB BEKASI TIMUR',
     joinDate: '2024-06-01',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -294,7 +337,9 @@ export const mockUsers: User[] = [
   {
     id: 'VIVITGR19',
     fullName: 'Vivi Novitasari',
-    workLocation: 'HUB TANGERANG',
+    wilayah: 'Jabodetabek & Banten',
+    area: 'Tangerang Selatan',
+    workLocation: 'HUB PAMULANG',
     joinDate: '2024-07-05',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -307,7 +352,9 @@ export const mockUsers: User[] = [
   {
     id: 'YUDIDPK20',
     fullName: 'Yudi Pratama',
-    workLocation: 'HUB DEPOK',
+    wilayah: 'Jawa Barat',
+    area: 'Depok Raya',
+    workLocation: 'HUB SAWANGAN',
     joinDate: '2024-07-15',
     jobTitle: 'Mitra Kurir',
     contractStatus: 'Aktif',
@@ -315,6 +362,67 @@ export const mockUsers: User[] = [
     bankName: 'Bank CIMB Niaga',
     registeredRecipientName: 'Yudi Pratama',
     avatarUrl: 'https://placehold.co/100x100.png?text=YP',
+    password: 'password123'
+  },
+  // Add more diverse locations
+  {
+    id: 'BDGKUR01',
+    fullName: 'Asep Sunarya',
+    wilayah: 'Jawa Barat',
+    area: 'Bandung Raya',
+    workLocation: 'HUB BANDUNG KOTA',
+    joinDate: '2023-01-10',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '1010101010',
+    bankName: 'Bank BJB',
+    registeredRecipientName: 'Asep Sunarya',
+    avatarUrl: 'https://placehold.co/100x100.png?text=AS',
+    password: 'password123'
+  },
+  {
+    id: 'SBYKUR01',
+    fullName: 'Rini Wulandari',
+    wilayah: 'Jawa Timur & Bali Nusra',
+    area: 'Surabaya Raya',
+    workLocation: 'HUB SURABAYA PUSAT',
+    joinDate: '2023-02-15',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '2020202020',
+    bankName: 'Bank Jatim',
+    registeredRecipientName: 'Rini Wulandari',
+    avatarUrl: 'https://placehold.co/100x100.png?text=RW',
+    password: 'password123'
+  },
+  {
+    id: 'SMGKUR01',
+    fullName: 'Joko Anwar',
+    wilayah: 'Jawa Tengah & DIY',
+    area: 'Semarang Raya',
+    workLocation: 'HUB SEMARANG KOTA',
+    joinDate: '2023-03-20',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '3030303030',
+    bankName: 'Bank Jateng',
+    registeredRecipientName: 'Joko Anwar',
+    avatarUrl: 'https://placehold.co/100x100.png?text=JA',
+    password: 'password123'
+  },
+  {
+    id: 'MDNKUR01',
+    fullName: 'Siti Aminah',
+    wilayah: 'Sumatera Utara',
+    area: 'Medan Kota',
+    workLocation: 'HUB MEDAN BARAT',
+    joinDate: '2023-04-25',
+    jobTitle: 'Mitra Kurir',
+    contractStatus: 'Aktif',
+    accountNumber: '4040404040',
+    bankName: 'Bank Sumut',
+    registeredRecipientName: 'Siti Aminah',
+    avatarUrl: 'https://placehold.co/100x100.png?text=SA',
     password: 'password123'
   }
 ];
@@ -345,7 +453,7 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
   const total = 15 + (daySeed % 10) - 2; // 13 to 23
   const delivered = Math.floor(total * (0.7 + (daySeed % 3) * 0.1)); // 70-90% success rate
   const undeliveredOrPending = total - delivered;
-  
+
   return {
     date: format(date, "yyyy-MM-dd"),
     totalPackages: total,
@@ -357,41 +465,40 @@ export const generateDailyPerformanceEntry = (date: Date): DailyPerformanceData 
 };
 
 // For Admin Reports Page
-export const mockAdminOverallStats: AdminOverallStats = {
-  totalActiveCouriers: mockUsers.filter(u => u.contractStatus === 'Aktif').length, 
-  totalPackagesToday: mockUsers.reduce((acc, user, index) => acc + (20 + (index * 5) % 15), 0), // Sum of packagesCarried from summaries
-  totalDeliveredToday: mockUsers.reduce((acc, user, index) => {
-      const carried = 20 + (index * 5) % 15;
-      return acc + Math.floor(carried * (0.75 + (index % 3) * 0.05));
-  }, 0), // Sum of packagesDelivered from summaries
-  totalPendingReturnToday: mockUsers.reduce((acc, user, index) => {
-      const carried = 20 + (index * 5) % 15;
-      const delivered = Math.floor(carried * (0.75 + (index % 3) * 0.05));
-      return acc + (carried - delivered);
-  }, 0), // Sum of failedOrReturned
-  overallSuccessRateToday: (() => {
-      const totalDelivered = mockUsers.reduce((acc, user, index) => {
-          const carried = 20 + (index * 5) % 15;
-          return acc + Math.floor(carried * (0.75 + (index % 3) * 0.05));
-      }, 0);
-      const totalAttempted = mockUsers.reduce((acc, user, index) => acc + (20 + (index * 5) % 15),0);
-      return totalAttempted > 0 ? (totalDelivered / totalAttempted) * 100 : 0;
-  })(),
+export const mockAdminOverallStats: AdminOverallStats = { // This will be dynamically calculated in the component now.
+  totalActiveCouriers: 0,
+  totalPackagesToday: 0,
+  totalDeliveredToday: 0,
+  totalPendingReturnToday: 0,
+  overallSuccessRateToday: 0,
 };
 
 export const mockAdminCourierSummaries: AdminCourierDailySummary[] = mockUsers.map((user, index) => {
-  const carried = 20 + (index * 5) % 15; // e.g. 20, 25, 30, 20, 25...
-  const delivered = Math.floor(carried * (0.75 + (index % 3) * 0.05)); // 75-85% success
+  const carried = 20 + (index * 5) % 15 + Math.floor(Math.random() * 5); // e.g. 20-29
+  const deliveredSeed = Math.random();
+  const delivered = Math.floor(carried * (0.70 + deliveredSeed * 0.25)); // 70-95% success
   const failed = carried - delivered;
+  let status: AdminCourierDailySummary['status'] = 'Belum Ada Laporan';
+  if (user.contractStatus === 'Aktif') {
+    const statusSeed = Math.random();
+    if (statusSeed < 0.6) status = 'Selesai';
+    else if (statusSeed < 0.9) status = 'Aktif Mengantar';
+    else status = 'Belum Ada Laporan';
+  } else {
+    status = 'Tidak Aktif';
+  }
+
   return {
     courierId: user.id,
     courierName: user.fullName,
-    workLocation: user.workLocation, // Added workLocation
+    wilayah: user.wilayah,
+    area: user.area,
+    workLocation: user.workLocation,
     packagesCarried: carried,
     packagesDelivered: delivered,
     packagesFailedOrReturned: failed,
     successRate: carried > 0 ? (delivered / carried) * 100 : 0,
-    status: user.contractStatus === 'Aktif' ? (index % 3 === 0 ? 'Selesai' : 'Aktif Mengantar') : 'Tidak Aktif',
+    status: status,
   };
 });
 
@@ -402,4 +509,3 @@ export const mockAdminDeliveryTimeData: AdminDeliveryTimeDataPoint[] = Array.fro
     delivered: 5 + Math.floor(Math.random() * 20), // Random deliveries per hour
   };
 });
-
