@@ -26,7 +26,8 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { BrowserMultiFormatReader, NotFoundException, ChecksumException, FormatException } from '@zxing/library';
+// Import types from @zxing/library, but not the library itself here
+import type { BrowserMultiFormatReader, IScannerControls } from '@zxing/library';
 
 const COLORS = ['hsl(var(--chart-1))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const codeReaderRef = useRef<BrowserMultiFormatReader | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
 
 
   const { toast } = useToast();
@@ -56,8 +58,42 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const startCameraAndScan = async () => {
-      if (!streamRef.current) {
+    let currentStream: MediaStream | null = null;
+    let currentReader: BrowserMultiFormatReader | null = null;
+    let currentControls: IScannerControls | null = null;
+
+    const stopCameraAndScan = () => {
+      if (currentControls) {
+        console.log('Stopping scanner controls.');
+        currentControls.stop();
+        currentControls = null;
+        scannerControlsRef.current = null;
+      }
+      if (currentReader && typeof currentReader.reset === 'function') {
+        console.log('Resetting code reader.');
+        try {
+          currentReader.reset();
+        } catch (e) {
+          console.error('Error resetting code reader:', e);
+        }
+        currentReader = null;
+        codeReaderRef.current = null;
+      }
+
+      if (currentStream) {
+        console.log('Stopping camera stream tracks.');
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      console.log('Camera and scan stopped.');
+    };
+
+    const startCameraAndScan = async (zxing: any) => {
+      if (!currentStream) {
         console.error("Stream not available for scanning.");
         setHasCameraPermission(false);
         return;
@@ -68,35 +104,36 @@ export default function DashboardPage() {
         return;
       }
 
-      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.srcObject = currentStream;
       try {
         await videoRef.current.play();
         console.log('Video playing, attempting to start barcode scan...');
 
-        const newReader = new BrowserMultiFormatReader();
-        codeReaderRef.current = newReader; // Assign to ref for cleanup
+        currentReader = new zxing.BrowserMultiFormatReader();
+        codeReaderRef.current = currentReader;
 
-        if (newReader && typeof newReader.decodeFromContinuously === 'function') {
+        if (currentReader && typeof currentReader.decodeFromContinuously === 'function') {
           console.log('Reader instance created, calling decodeFromContinuously.');
-          newReader.decodeFromContinuously(undefined, videoRef.current, (result, err) => {
-            // Check if the reader in the ref is still the one we are using, or if dialog was closed
-            if (!codeReaderRef.current || codeReaderRef.current !== newReader) {
-              console.log('Reader was reset or changed during scan callback. Ignoring result.');
+          currentControls = await currentReader.decodeFromContinuously(videoRef.current, (result: any, err: any) => {
+            // Ensure this specific reader instance is still active
+            if (codeReaderRef.current !== currentReader || !currentControls) {
+              console.log('Reader was reset or changed during scan callback, or controls were stopped. Ignoring result.');
               return;
             }
             if (result) {
               console.log('Barcode scanned:', result.getText());
               setResiInput(result.getText().toUpperCase());
               toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
-              // Optionally, stop scanning after a successful scan if dialog remains open
-              // setIsScanDialogOpen(false); // Or close dialog if preferred
+              // Optionally stop scanning or close dialog
+              // setIsScanDialogOpen(false); // or currentControls?.stop();
             }
-            if (err && !(err instanceof NotFoundException) && !(err instanceof ChecksumException) && !(err instanceof FormatException)) {
+            if (err && !(err instanceof zxing.NotFoundException) && !(err instanceof zxing.ChecksumException) && !(err instanceof zxing.FormatException)) {
               console.error('Barcode scan error:', err);
             }
           });
+          scannerControlsRef.current = currentControls;
         } else {
-          console.error('Failed to create a valid reader instance or decodeFromContinuously method not found.', newReader);
+          console.error('Failed to create a valid reader instance or decodeFromContinuously method not found.', currentReader);
           setHasCameraPermission(false);
           toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal memulai pemindai barcode.' });
         }
@@ -106,80 +143,65 @@ export default function DashboardPage() {
         toast({ variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.' });
       }
     };
+    
+    const initializeScanner = async () => {
+      if (!isScanDialogOpen) return;
 
-    const stopCameraAndScan = () => {
-      if (codeReaderRef.current && typeof codeReaderRef.current.reset === 'function') {
-        console.log('Resetting code reader.');
-        try {
-          codeReaderRef.current.reset();
-        } catch (e) {
-          console.error('Error resetting code reader:', e);
-        }
-      } else if (codeReaderRef.current) {
-        console.warn('Code reader instance exists but reset method is not available.');
-      }
-      codeReaderRef.current = null;
-
-      if (streamRef.current) {
-        console.log('Stopping camera stream tracks.');
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-      console.log('Camera and scan stopped.');
-    };
-
-    const requestCameraAndStart = async () => {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error('Camera API not supported.');
-        setHasCameraPermission(false);
-        toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
-        return;
-      }
-
-      // Stop any existing stream or reader first to ensure clean state
-      stopCameraAndScan();
       setHasCameraPermission(null); // Indicate we are requesting
+      console.log('Scan dialog opened, requesting camera and loading scanner library...');
 
-      let acquiredStream: MediaStream | null = null;
       try {
-        acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
-      } catch (err) {
-        console.warn("Could not get rear camera (exact), trying ideal:", err);
+        const zxing = await import('@zxing/library');
+        console.log('@zxing/library loaded successfully');
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.error('Camera API not supported.');
+          setHasCameraPermission(false);
+          toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
+          return;
+        }
+
+        let acquiredStream: MediaStream | null = null;
         try {
-          acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        } catch (err2) {
-          console.warn("Could not get rear camera (ideal), trying any camera:", err2);
+          acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
+        } catch (err) {
+          console.warn("Could not get rear camera (exact), trying ideal:", err);
           try {
-            acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true });
-          } catch (finalError) {
-            console.error('Error accessing any camera:', finalError);
-            setHasCameraPermission(false);
-            toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera.' });
-            return;
+            acquiredStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+          } catch (err2) {
+            console.warn("Could not get rear camera (ideal), trying any camera:", err2);
+            try {
+              acquiredStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            } catch (finalError) {
+              console.error('Error accessing any camera:', finalError);
+              setHasCameraPermission(false);
+              toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera.' });
+              return;
+            }
           }
         }
-      }
-      
-      if (acquiredStream) {
-        streamRef.current = acquiredStream;
-        setHasCameraPermission(true);
-        console.log('Camera permission granted, starting scan process.');
-        await startCameraAndScan();
-      } else {
-        // This case should ideally be caught by the errors above
+        
+        if (acquiredStream) {
+          currentStream = acquiredStream;
+          streamRef.current = currentStream; // Keep a ref for external access if needed, though primarily use currentStream
+          setHasCameraPermission(true);
+          console.log('Camera permission granted, starting scan process.');
+          await startCameraAndScan(zxing);
+        } else {
+          setHasCameraPermission(false);
+          toast({ variant: 'destructive', title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera.' });
+        }
+
+      } catch (libraryError) {
+        console.error("Failed to load @zxing/library or other init error:", libraryError);
+        toast({ variant: "destructive", title: "Library Error", description: "Gagal memuat library pemindai." });
         setHasCameraPermission(false);
-        toast({ variant: 'destructive', title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera.' });
       }
     };
 
     if (isScanDialogOpen) {
-      console.log('Scan dialog opened, requesting camera.');
-      requestCameraAndStart();
+      initializeScanner();
     } else {
-      console.log('Scan dialog closed, stopping camera.');
       stopCameraAndScan();
     }
 
@@ -721,4 +743,3 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
-
