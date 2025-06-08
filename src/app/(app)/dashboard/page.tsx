@@ -59,60 +59,76 @@ export default function DashboardPage() {
     const startCameraAndScan = async () => {
       if (!streamRef.current) {
         console.error("Stream not available for scanning.");
-        setHasCameraPermission(false); // Reflect that scanning cannot start
+        setHasCameraPermission(false);
+        return;
+      }
+      if (!videoRef.current) {
+        console.error("Video element not available for scanning.");
+        setHasCameraPermission(false);
         return;
       }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = streamRef.current;
-        try {
-            await videoRef.current.play();
-            console.log('Starting barcode scan...');
-            
-            codeReaderRef.current = new BrowserMultiFormatReader(); // Initialize fresh reader
-            
-            if (codeReaderRef.current) { // Check if instance was created
-              codeReaderRef.current.decodeFromContinuously(undefined, videoRef.current, (result, err) => {
-                if (!codeReaderRef.current) { // Check if reader was reset/nulled during async operation
-                  return;
-                }
-                if (result) {
-                  console.log('Barcode scanned:', result.getText());
-                  setResiInput(result.getText().toUpperCase());
-                  toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
-                  // Optionally, stop scanning after a successful scan if dialog remains open
-                  // if (codeReaderRef.current) {
-                  //    codeReaderRef.current.reset();
-                  //    codeReaderRef.current = null; // Ensure it's marked as reset
-                  // }
-                  // setIsScanDialogOpen(false); // Or close dialog if preferred
-                }
-                if (err && !(err instanceof NotFoundException) && !(err instanceof ChecksumException) && !(err instanceof FormatException)) {
-                  console.error('Barcode scan error:', err);
-                }
-              });
+      videoRef.current.srcObject = streamRef.current;
+      try {
+        await videoRef.current.play();
+        console.log('Video playing, attempting to start barcode scan...');
+
+        const newReader = new BrowserMultiFormatReader();
+        codeReaderRef.current = newReader; // Assign to ref for cleanup
+
+        if (newReader && typeof newReader.decodeFromContinuously === 'function') {
+          console.log('Reader instance created, calling decodeFromContinuously.');
+          newReader.decodeFromContinuously(undefined, videoRef.current, (result, err) => {
+            // Check if the reader in the ref is still the one we are using, or if dialog was closed
+            if (!codeReaderRef.current || codeReaderRef.current !== newReader) {
+              console.log('Reader was reset or changed during scan callback. Ignoring result.');
+              return;
             }
-          } catch (playError) {
-            console.error("Error playing video for scanning:", playError);
-            setHasCameraPermission(false);
-            toast({variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.'});
-          }
+            if (result) {
+              console.log('Barcode scanned:', result.getText());
+              setResiInput(result.getText().toUpperCase());
+              toast({ title: "Barcode Terdeteksi!", description: `Resi: ${result.getText()}` });
+              // Optionally, stop scanning after a successful scan if dialog remains open
+              // setIsScanDialogOpen(false); // Or close dialog if preferred
+            }
+            if (err && !(err instanceof NotFoundException) && !(err instanceof ChecksumException) && !(err instanceof FormatException)) {
+              console.error('Barcode scan error:', err);
+            }
+          });
+        } else {
+          console.error('Failed to create a valid reader instance or decodeFromContinuously method not found.', newReader);
+          setHasCameraPermission(false);
+          toast({ variant: 'destructive', title: 'Scan Error', description: 'Gagal memulai pemindai barcode.' });
+        }
+      } catch (playError) {
+        console.error("Error playing video for scanning:", playError);
+        setHasCameraPermission(false);
+        toast({ variant: 'destructive', title: 'Video Error', description: 'Gagal memulai video untuk scan.' });
       }
     };
 
     const stopCameraAndScan = () => {
-      if (codeReaderRef.current) {
-        codeReaderRef.current.reset(); 
-        codeReaderRef.current = null; // Release the instance
+      if (codeReaderRef.current && typeof codeReaderRef.current.reset === 'function') {
+        console.log('Resetting code reader.');
+        try {
+          codeReaderRef.current.reset();
+        } catch (e) {
+          console.error('Error resetting code reader:', e);
+        }
+      } else if (codeReaderRef.current) {
+        console.warn('Code reader instance exists but reset method is not available.');
       }
+      codeReaderRef.current = null;
+
       if (streamRef.current) {
+        console.log('Stopping camera stream tracks.');
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
       if (videoRef.current) {
         videoRef.current.srcObject = null;
       }
-      // setHasCameraPermission(null); // Decide if you want to reset permission status display
+      console.log('Camera and scan stopped.');
     };
 
     const requestCameraAndStart = async () => {
@@ -122,6 +138,10 @@ export default function DashboardPage() {
         toast({ variant: 'destructive', title: 'Kamera Tidak Didukung', description: 'Browser Anda tidak mendukung akses kamera.' });
         return;
       }
+
+      // Stop any existing stream or reader first to ensure clean state
+      stopCameraAndScan();
+      setHasCameraPermission(null); // Indicate we are requesting
 
       let acquiredStream: MediaStream | null = null;
       try {
@@ -137,26 +157,35 @@ export default function DashboardPage() {
           } catch (finalError) {
             console.error('Error accessing any camera:', finalError);
             setHasCameraPermission(false);
-            toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera.'});
+            toast({ variant: 'destructive', title: 'Akses Kamera Ditolak', description: 'Mohon izinkan akses kamera.' });
             return;
           }
         }
       }
       
-      streamRef.current = acquiredStream;
-      setHasCameraPermission(true);
-      await startCameraAndScan(); // Now start scanning with the acquired stream
+      if (acquiredStream) {
+        streamRef.current = acquiredStream;
+        setHasCameraPermission(true);
+        console.log('Camera permission granted, starting scan process.');
+        await startCameraAndScan();
+      } else {
+        // This case should ideally be caught by the errors above
+        setHasCameraPermission(false);
+        toast({ variant: 'destructive', title: 'Kamera Error', description: 'Gagal mendapatkan stream kamera.' });
+      }
     };
 
-
     if (isScanDialogOpen) {
+      console.log('Scan dialog opened, requesting camera.');
       requestCameraAndStart();
     } else {
+      console.log('Scan dialog closed, stopping camera.');
       stopCameraAndScan();
     }
 
     return () => {
-      stopCameraAndScan(); // Cleanup on component unmount or if dialog closes unexpectedly
+      console.log('useEffect cleanup: stopping camera and scan.');
+      stopCameraAndScan();
     };
   }, [isScanDialogOpen, toast]);
 
@@ -692,5 +721,4 @@ function PackageActionButton({ pkg, actionType, updatePackageStatus, disabled }:
     </Dialog>
   );
 }
-
 
