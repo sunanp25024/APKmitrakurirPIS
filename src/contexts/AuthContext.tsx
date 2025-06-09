@@ -1,7 +1,7 @@
 
     "use client";
 
-    import type { User as AppUserType } from '@/types'; 
+    import type { User as AppUserType, AdminSession, AuthLoginResponse } from '@/types'; 
     import { useRouter } from 'next/navigation';
     import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
     import { 
@@ -13,21 +13,6 @@
     } from 'firebase/auth';
     import { doc, getDoc, setDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
     import { auth, db } from '@/lib/firebase'; 
-
-    interface AuthLoginResponse {
-      success: boolean;
-      message?: string;
-      user?: AppUserType | null;
-      isAdmin?: boolean; // Flag to indicate if login was for an admin
-      role?: 'master' | 'regular'; // Admin role
-    }
-
-    interface AdminSession {
-      id: string; // Admin's own ID (e.g., MASTERADMIN)
-      role: 'master' | 'regular';
-      firebaseUid: string; // Firebase UID for the admin (after successful Firebase login)
-      email: string; // Admin's Firebase email (e.g., masteradmin@spxkurir.app)
-    }
 
     interface AuthContextType {
       user: AppUserType | null; 
@@ -47,6 +32,7 @@
       { id: "MASTERADMIN", password: "masterpassword", role: "master" as const, email: "masteradmin@spxkurir.app"},
       { id: "ADMIN01", password: "admin123", role: "regular" as const, email: "admin01@spxkurir.app"},
       { id: "SUPERVISOR01", password: "super123", role: "regular" as const, email: "supervisor01@spxkurir.app"},
+      { id: "PICAREA01", password: "pic123", role: "pic" as const, email: "picarea01@spxkurir.app"}, // Example PIC
     ];
 
     export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -111,10 +97,10 @@
                 }
               } else {
                 console.warn("User document not found in Firestore for UID:", fbUser.uid, "This might be an admin user or a new user without a Firestore doc. Logging out if not an admin.");
-                if (!adminSession && !localStorage.getItem(ADMIN_SESSION_KEY)) { // Check again if adminSession was set by login or from storage
+                if (!adminSession && !localStorage.getItem(ADMIN_SESSION_KEY)) { 
                     await signOut(auth); 
                     setUser(null);
-                    setFirebaseUser(null); // also clear fbUser
+                    setFirebaseUser(null); 
                 }
               }
             } catch (error) {
@@ -156,7 +142,7 @@
         }
         
         if (foundAdminConfig) {
-          const adminEmailForFirebase = foundAdminConfig.email; // Always use the email from config for Firebase Auth
+          const adminEmailForFirebase = foundAdminConfig.email; 
           try {
             const adminFirebaseUserCredential = await signInWithEmailAndPassword(auth, adminEmailForFirebase, pass);
             const adminData: AdminSession = { 
@@ -211,9 +197,7 @@
         
         try {
           const userCredential = await signInWithEmailAndPassword(auth, finalCourierEmail, pass);
-          // onAuthStateChanged akan menangani setUser dan setFirebaseUser
-          // Juga akan menangani pengecekan contractStatus dari Firestore
-          setAdminSession(null); // Pastikan tidak ada sisa sesi admin jika ini adalah login kurir
+          setAdminSession(null); 
           localStorage.removeItem(ADMIN_SESSION_KEY);
           setIsLoading(false);
           return { success: true, isAdmin: false }; 
@@ -246,11 +230,9 @@
         }
         const currentPath = window.location.pathname; 
         await signOut(auth);
-        // Pembersihan state sudah ditangani oleh onAuthStateChanged
         
-        // Redirect berdasarkan path saat ini
         if (currentPath?.startsWith('/admin')) {
-            router.push('/login'); // Atau halaman login admin khusus jika ada
+            router.push('/login'); 
         } else {
             router.push('/login'); 
         }

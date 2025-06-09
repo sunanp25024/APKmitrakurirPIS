@@ -21,16 +21,9 @@ const loginSchema = z.object({
 
 type LoginFormInputs = z.infer<typeof loginSchema>;
 
-// This local ADMIN_CREDENTIALS check is removed as AuthContext will handle it.
-// const ADMIN_CREDENTIALS = [
-//   { id: "MASTERADMIN", password: "masterpassword", role: "master" },
-//   { id: "ADMIN01", password: "admin123", role: "regular" },
-//   { id: "SUPERVISOR01", password: "super123", role: "regular" },
-// ];
-
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth(); // login from AuthContext will now handle both admin and courier
+  const { login } = useAuth(); 
   const router = useRouter();
   const { toast } = useToast();
 
@@ -41,14 +34,16 @@ export function LoginForm() {
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     setIsLoading(true);
 
-    // Always call the login function from AuthContext.
-    // It will determine if it's an admin or courier login attempt.
     const loginResult = await login(data.id, data.password);
     setIsLoading(false);
 
     if (loginResult.success) {
-      if (loginResult.isAdmin) { // AuthContext login will return isAdmin flag
-        toast({ title: `Login Admin (${loginResult.role}) Berhasil`, description: "Mengarahkan ke Panel Admin." });
+      if (loginResult.isAdmin) { 
+        let adminRoleMessage = "Admin";
+        if (loginResult.role === 'master') adminRoleMessage = "Master Admin";
+        else if (loginResult.role === 'pic') adminRoleMessage = "PIC";
+        
+        toast({ title: `Login ${adminRoleMessage} Berhasil`, description: "Mengarahkan ke Panel Admin." });
         router.push('/admin/reports');
       } else {
         toast({ title: "Login Kurir Berhasil", description: "Selamat datang kembali!" });
@@ -72,7 +67,7 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="id">ID Pengguna atau Email Admin</Label>
+            <Label htmlFor="id">ID Pengguna atau Email Admin/PIC</Label>
             <Input 
               id="id" 
               type="text"

@@ -5,15 +5,16 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings, Loader2 } from 'lucide-react'; // Added Loader2
+import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings, Loader2 } from 'lucide-react'; 
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
 
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
-  role?: 'master' | 'regular'; // Role 'master' can see this, 'regular' defaults to all if not specified
+  allowedRoles: ('master' | 'regular' | 'pic')[]; 
 }
 
 export default function AdminLayout({
@@ -23,51 +24,50 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [adminRole, setAdminRole] = useState<string | null>(null);
+  const { adminSession, isLoading: authLoading } = useAuth(); // Get adminSession from useAuth
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    try {
-      const adminSession = localStorage.getItem('adminSession');
-      if (adminSession) {
-        const sessionData = JSON.parse(adminSession);
-        setAdminRole(sessionData.role);
-      } else {
-        // If no admin session, redirect to login (or handle appropriately)
-        // For now, we assume pages are protected individually or this layout is only for logged-in admins
+    if (!authLoading && !adminSession) {
+      // Redirect to login if not loading and no admin session (unless already on login)
+      // This check might be redundant if pages themselves protect routes, but good for layout
+      if (pathname !== '/login') { // Prevent redirect loop if already on login
+        // router.push('/login'); // Consider if this is needed or if pages handle it
       }
-    } catch (error) {
-      console.error("Failed to parse admin session from localStorage:", error);
-      setAdminRole(null);
     }
-  }, []);
-
-  const baseNavItems: NavItem[] = [
-    { href: '/admin/reports', label: 'Laporan & Dashboard', icon: BarChart3 },
-    { href: '/admin/couriers', label: 'Manajemen Kurir', icon: Users },
-  ];
+  }, [adminSession, authLoading, router, pathname]);
   
-  const masterNavItems: NavItem[] = [
-    { href: '/admin/manage-admins', label: 'Manajemen Admin', icon: Settings, role: 'master' },
+  const allNavItems: NavItem[] = [
+    { href: '/admin/reports', label: 'Laporan & Dashboard', icon: BarChart3, allowedRoles: ['master', 'regular', 'pic'] },
+    { href: '/admin/couriers', label: 'Manajemen Kurir', icon: Users, allowedRoles: ['master', 'regular', 'pic'] },
+    { href: '/admin/manage-admins', label: 'Manajemen Admin', icon: Settings, allowedRoles: ['master'] },
   ];
 
   const getFilteredNavItems = () => {
-    let items = [...baseNavItems];
-    if (adminRole === 'master') {
-      items.push(...masterNavItems);
-    }
-    return items;
+    if (!adminSession) return [];
+    return allNavItems.filter(item => item.allowedRoles.includes(adminSession.role));
   };
   
   const navItems = getFilteredNavItems();
 
-  if (!isMounted) {
+  if (!isMounted || authLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-muted/40">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
+  }
+
+  // If still no admin session after loading, perhaps show a message or redirect more forcefully
+  if (!adminSession) {
+     router.push('/login'); // Redirect if no session after loading
+     return (
+        <div className="flex h-screen items-center justify-center bg-muted/40">
+            <p>Sesi tidak ditemukan, mengarahkan ke halaman login...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-primary ml-2" />
+      </div>
+     )
   }
 
 
@@ -80,7 +80,6 @@ export default function AdminLayout({
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/40">
-      {/* Desktop Sidebar */}
       <aside className="fixed inset-y-0 left-0 z-10 hidden w-60 flex-col border-r bg-background sm:flex">
         <AdminBrand />
         <nav className="flex flex-col items-start gap-1 px-2 py-4">
@@ -108,9 +107,7 @@ export default function AdminLayout({
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <div className="flex flex-col sm:pl-60">
-        {/* Mobile Header & Sidebar Trigger */}
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-background px-4 sm:border-0 sm:bg-transparent sm:px-6 sm:hidden">
             <Sheet>
               <SheetTrigger asChild>
@@ -148,9 +145,7 @@ export default function AdminLayout({
             </Sheet>
            <div className="font-semibold text-primary text-lg">Admin SPX Kurir</div>
         </header>
-        {/* Desktop Header */}
         <header className="sticky top-0 z-30 hidden h-16 items-center justify-end border-b bg-background px-4 sm:flex sm:px-6">
-             {/* Placeholder for admin-specific header content on desktop */}
         </header>
         <main className="flex-1 items-start gap-4 p-4 sm:px-6 sm:py-6 md:gap-8">
           {children}
@@ -159,3 +154,4 @@ export default function AdminLayout({
     </div>
   );
 }
+

@@ -53,6 +53,22 @@ export interface DailyPerformanceData {
 }
 
 
+// For Admin System
+export interface AdminSession {
+  id: string; 
+  role: 'master' | 'regular' | 'pic'; // Added 'pic' role
+  firebaseUid: string; 
+  email: string; 
+}
+
+export interface AuthLoginResponse {
+  success: boolean;
+  message?: string;
+  user?: AppUserType | null;
+  isAdmin?: boolean; 
+  role?: 'master' | 'regular' | 'pic'; // Added 'pic' role
+}
+
 // For Admin Reports Page
 export interface AdminOverallStats {
   totalActiveCouriers: number;
@@ -80,3 +96,6 @@ export interface AdminDeliveryTimeDataPoint {
   hour: string; // e.g., "09:00", "10:00"
   delivered: number;
 }
+
+// Renaming to avoid conflict if AppUserType is used elsewhere for courier specific data
+export type AppUserType = User;
