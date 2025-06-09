@@ -80,14 +80,14 @@
                 }
             }
 
-            const userDocRef = doc(db, "users", fbUser.uid); // ID Dokumen adalah UID Firebase
+            const userDocRef = doc(db, "users", fbUser.uid); 
             try {
               const userDocSnap = await getDoc(userDocRef);
               if (userDocSnap.exists()) {
                 const appUserDataFromDb = userDocSnap.data();
                 const appUserData: AppUserType = {
-                    firebaseUid: fbUser.uid, // Pastikan firebaseUid ada di objek user
-                    id: appUserDataFromDb.id, // ID kustom kurir
+                    firebaseUid: fbUser.uid, 
+                    id: appUserDataFromDb.id, 
                     fullName: appUserDataFromDb.fullName,
                     wilayah: appUserDataFromDb.wilayah,
                     area: appUserDataFromDb.area,
@@ -111,15 +111,17 @@
                 }
               } else {
                 console.warn("User document not found in Firestore for UID:", fbUser.uid, "This might be an admin user or a new user without a Firestore doc. Logging out if not an admin.");
-                if (!adminSession) { 
+                if (!adminSession && !localStorage.getItem(ADMIN_SESSION_KEY)) { // Check again if adminSession was set by login or from storage
                     await signOut(auth); 
                     setUser(null);
+                    setFirebaseUser(null); // also clear fbUser
                 }
               }
             } catch (error) {
               console.error("Error fetching user document from Firestore:", error);
               await signOut(auth); 
               setUser(null);
+              setFirebaseUser(null);
             }
           } else { 
             setUser(null);
@@ -143,18 +145,25 @@
           return { success: false, message: "Layanan autentikasi tidak siap. Coba lagi nanti." };
         }
         
-        const foundAdminConfig = ADMIN_FIRESTORE_CREDENTIALS.find(
-          (admin) => admin.id.toUpperCase() === idOrEmailFromInput.toUpperCase()
+        let foundAdminConfig = ADMIN_FIRESTORE_CREDENTIALS.find(
+          (admin) => admin.email.toLowerCase() === idOrEmailFromInput.toLowerCase()
         );
 
+        if (!foundAdminConfig) {
+            foundAdminConfig = ADMIN_FIRESTORE_CREDENTIALS.find(
+                (admin) => admin.id.toUpperCase() === idOrEmailFromInput.toUpperCase()
+            );
+        }
+        
         if (foundAdminConfig) {
+          const adminEmailForFirebase = foundAdminConfig.email; // Always use the email from config for Firebase Auth
           try {
-            const adminFirebaseUserCredential = await signInWithEmailAndPassword(auth, foundAdminConfig.email, pass);
+            const adminFirebaseUserCredential = await signInWithEmailAndPassword(auth, adminEmailForFirebase, pass);
             const adminData: AdminSession = { 
               id: foundAdminConfig.id, 
               role: foundAdminConfig.role, 
               firebaseUid: adminFirebaseUserCredential.user.uid,
-              email: foundAdminConfig.email
+              email: foundAdminConfig.email 
             };
             setAdminSession(adminData); 
             localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminData)); 
@@ -165,11 +174,11 @@
           } catch (error: any) {
             setIsLoading(false);
             console.error("Admin Firebase login error:", error);
-             let message = "Login Admin gagal. Periksa ID dan Password.";
+            let message = "Login Admin gagal. Periksa ID/Email dan Password.";
             if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                 message = "Kredensial Admin (email/password di Firebase) salah atau tidak ditemukan.";
             } else if (error.code === 'auth/invalid-email') {
-                message = "Format email Admin yang dikonfigurasi tidak valid.";
+                message = `Format email Admin (${adminEmailForFirebase}) yang dikonfigurasi tidak valid.`;
             }
             return { success: false, message };
           }
@@ -178,22 +187,21 @@
         // Courier login logic
         let finalCourierEmail: string;
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const courierIdRegex = /^[a-zA-Z0-9_.-]+$/; // No spaces, allowed chars for local part
+        const courierIdRegex = /^[a-zA-Z0-9_.-]+$/; 
 
-        if (idOrEmailFromInput.includes('@')) { // User might be typing full email
+        if (idOrEmailFromInput.includes('@')) { 
             if (!emailRegex.test(idOrEmailFromInput)) {
                 setIsLoading(false);
                 return { success: false, message: "Format email yang Anda masukkan tidak valid." };
             }
             finalCourierEmail = idOrEmailFromInput;
-            // Optionally validate the local part of the email if needed, though Firebase handles full email validation
             const localPart = idOrEmailFromInput.split('@')[0];
             if (!courierIdRegex.test(localPart)) {
                  setIsLoading(false);
                  return { success: false, message: "Format ID Pengguna (bagian sebelum '@') dalam email tidak valid. Hanya huruf, angka, _, ., - yang diizinkan dan tanpa spasi." };
             }
 
-        } else { // User is typing a custom ID
+        } else { 
             if (!courierIdRegex.test(idOrEmailFromInput)) {
                 setIsLoading(false);
                 return { success: false, message: "Format ID Pengguna tidak valid. Hanya huruf, angka, _, ., - yang diizinkan dan tanpa spasi." };
@@ -203,6 +211,10 @@
         
         try {
           const userCredential = await signInWithEmailAndPassword(auth, finalCourierEmail, pass);
+          // onAuthStateChanged akan menangani setUser dan setFirebaseUser
+          // Juga akan menangani pengecekan contractStatus dari Firestore
+          setAdminSession(null); // Pastikan tidak ada sisa sesi admin jika ini adalah login kurir
+          localStorage.removeItem(ADMIN_SESSION_KEY);
           setIsLoading(false);
           return { success: true, isAdmin: false }; 
         } catch (error: any) {
@@ -234,9 +246,11 @@
         }
         const currentPath = window.location.pathname; 
         await signOut(auth);
+        // Pembersihan state sudah ditangani oleh onAuthStateChanged
         
+        // Redirect berdasarkan path saat ini
         if (currentPath?.startsWith('/admin')) {
-            router.push('/login');
+            router.push('/login'); // Atau halaman login admin khusus jika ada
         } else {
             router.push('/login'); 
         }
@@ -257,3 +271,4 @@
       }
       return context;
     };
+
