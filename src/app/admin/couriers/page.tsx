@@ -90,9 +90,8 @@ export default function AdminCouriersPage() {
 
   const isMasterAdmin = adminSession?.role === 'master';
   const isRegularAdmin = adminSession?.role === 'regular';
-  const canManageDirectly = isMasterAdmin; 
-  const canProposeChanges = isRegularAdmin; 
-  const canViewOnly = adminSession?.role === 'pic';
+  const isPIC = adminSession?.role === 'pic';
+
 
   const fetchCouriers = useCallback(async () => {
     setIsLoadingData(true);
@@ -109,7 +108,7 @@ export default function AdminCouriersPage() {
         const data = docSnap.data();
         if (data.id && data.jobTitle) {
              fetchedCouriers.push({
-                firebaseUid: docSnap.id, // This is the Firestore document ID, which is the Firebase Auth UID
+                firebaseUid: docSnap.id, 
                 ...data,
               } as User);
         }
@@ -139,13 +138,13 @@ export default function AdminCouriersPage() {
       return;
     }
 
-    if (editingCourier) { // Handle Edit
-      const { password, id: customId, firebaseUid, ...changes } = data; // id is customId from form
+    if (editingCourier) { 
+      const { password, id: customId, firebaseUid, ...changes } = data; 
       
       const requestedChanges: Partial<Omit<User, 'firebaseUid' | 'password' | 'id'>> = {};
       Object.keys(changes).forEach(keyStr => {
         const key = keyStr as keyof typeof changes;
-        if (changes[key] !== editingCourier[key as keyof User]) { // Compare with original editingCourier data
+        if (changes[key] !== editingCourier[key as keyof User]) { 
           (requestedChanges as any)[key] = changes[key];
         }
       });
@@ -174,11 +173,11 @@ export default function AdminCouriersPage() {
           if (!editingCourier.firebaseUid) throw new Error("Firebase UID kurir tidak ditemukan untuk permintaan update.");
           const updateRequest: CourierUpdateRequest = {
             courierFirebaseUid: editingCourier.firebaseUid,
-            courierId: editingCourier.id, // Custom ID of the courier
-            courierFullName: editingCourier.fullName, // Full name for display
+            courierId: editingCourier.id, 
+            courierFullName: editingCourier.fullName,
             requestedChanges,
             requestorFirebaseUid: adminSession.firebaseUid,
-            requestorId: adminSession.id, // Custom ID of the admin (e.g., "ADMIN01")
+            requestorId: adminSession.id, 
             status: 'pending',
             requestedAt: Date.now(),
           };
@@ -190,10 +189,10 @@ export default function AdminCouriersPage() {
           toast({ variant: "destructive", title: "Permintaan Update Gagal", description: error.message });
         }
       }
-    } else { // Handle Add New User (Kurir/PIC)
+    } else { 
       if (!data.password || data.password.length < 6) {
         toast({ variant: "destructive", title: "Password Diperlukan", description: "Password minimal 6 karakter untuk pengguna baru."});
-        setValue('password', ''); // Clear password if invalid during add
+        setValue('password', ''); 
         return;
       }
       const existingUserWithCustomId = couriers.find(c => c.id === data.id);
@@ -233,7 +232,7 @@ export default function AdminCouriersPage() {
             const creationRequest: UserCreationRequest = {
               requestedUserData: { ...userDataForRequest, password: data.password }, 
               requestorFirebaseUid: adminSession.firebaseUid,
-              requestorId: adminSession.id, // Custom ID of the admin
+              requestorId: adminSession.id, 
               status: 'pending',
               requestedAt: Date.now(),
             };
@@ -253,8 +252,8 @@ export default function AdminCouriersPage() {
   };
 
   const handleEdit = (courier: User) => {
-    if (viewOnly) {
-        toast({variant: "destructive", title: "Akses Terbatas", description: "Anda hanya memiliki akses lihat."});
+    if (isPIC) {
+        toast({variant: "destructive", title: "Akses Terbatas", description: "PIC hanya memiliki akses lihat."});
         return;
     }
     setEditingCourier(courier);
@@ -302,8 +301,8 @@ export default function AdminCouriersPage() {
   };
 
   const openAddForm = () => {
-    if (viewOnly) {
-        toast({variant: "destructive", title: "Akses Terbatas", description: "Anda hanya memiliki akses lihat."});
+    if (isPIC) {
+        toast({variant: "destructive", title: "Akses Terbatas", description: "PIC hanya memiliki akses lihat."});
         return;
     }
     if (!isMasterAdmin && !isRegularAdmin) {
@@ -316,7 +315,7 @@ export default function AdminCouriersPage() {
         accountNumber: '', bankName: '', registeredRecipientName: '', avatarUrl: '', firebaseUid: undefined,
     });
     setEditingCourier(null);
-    setShowPassword(true); // Show password for new user
+    setShowPassword(true); 
     setIsFormOpen(true);
   };
 
@@ -334,11 +333,11 @@ export default function AdminCouriersPage() {
             <CardDescription>
               {isMasterAdmin && "Tambah, edit, atau hapus data kurir/PIC. Penambahan akan membuat akun Firebase."}
               {isRegularAdmin && "Ajukan penambahan pengguna baru atau perubahan data untuk persetujuan MasterAdmin."}
-              {viewOnly && "Lihat data kurir dan PIC. Hubungi Admin untuk perubahan."}
+              {isPIC && "Lihat data kurir dan PIC. Hubungi Admin untuk perubahan."}
             </CardDescription>
           </div>
           {(isMasterAdmin || isRegularAdmin) && (
-            <Button onClick={openAddForm} size="sm" disabled={viewOnly}>
+            <Button onClick={openAddForm} size="sm" disabled={isPIC}>
               <UserPlus className="mr-2 h-4 w-4" /> {isMasterAdmin ? 'Tambah Pengguna' : 'Ajukan Pengguna Baru'}
             </Button>
           )}
@@ -350,7 +349,7 @@ export default function AdminCouriersPage() {
             <AlertDescription className="text-blue-600 space-y-1">
               {isMasterAdmin && <p>MasterAdmin: Penambahan & perubahan data langsung diterapkan.</p>}
               {isRegularAdmin && <p>Admin: Penambahan pengguna baru atau pengubahan data akan dikirim sebagai permintaan persetujuan kepada MasterAdmin. Cek status di menu "Permintaan Saya".</p>}
-              {viewOnly && <p>PIC: Anda memiliki akses lihat saja untuk data pengguna.</p>}
+              {isPIC && <p>PIC: Anda memiliki akses lihat saja untuk data pengguna.</p>}
             </AlertDescription>
           </Alert>
           {isLoadingData ? (
@@ -366,13 +365,13 @@ export default function AdminCouriersPage() {
                   <TableHead>Area</TableHead>
                   <TableHead>Lokasi Kerja</TableHead>
                   <TableHead>Status Kontrak</TableHead>
-                  {(!viewOnly) && <TableHead className="text-right">Aksi</TableHead>}
+                  {(!isPIC) && <TableHead className="text-right">Aksi</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {couriers.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={viewOnly ? 7 : 8} className="text-center">Tidak ada data pengguna (Kurir/PIC).</TableCell>
+                    <TableCell colSpan={isPIC ? 7 : 8} className="text-center">Tidak ada data pengguna (Kurir/PIC).</TableCell>
                   </TableRow>
                 ) : (
                   couriers.map((courier) => (
@@ -384,9 +383,9 @@ export default function AdminCouriersPage() {
                       <TableCell>{courier.area || '-'}</TableCell>
                       <TableCell>{courier.workLocation}</TableCell>
                       <TableCell><Badge variant={courier.contractStatus === 'Aktif' ? "default" : "destructive"}>{courier.contractStatus}</Badge></TableCell>
-                      {(!viewOnly) && (
+                      {(!isPIC) && (
                         <TableCell className="text-right space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(courier)} disabled={viewOnly}>
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(courier)} disabled={isPIC}>
                             <Edit className="mr-1 h-3 w-3" /> {isMasterAdmin ? 'Edit Langsung' : 'Ajukan Edit'}
                           </Button>
                           {isMasterAdmin && (
@@ -405,7 +404,7 @@ export default function AdminCouriersPage() {
         </CardContent>
       </Card>
 
-      {(!viewOnly) && (
+      {(!isPIC) && (
         <Dialog open={isFormOpen} onOpenChange={(isOpen) => {
             setIsFormOpen(isOpen);
             if (!isOpen) {
@@ -437,8 +436,7 @@ export default function AdminCouriersPage() {
                   {errors.fullName && <p className="text-sm text-destructive mt-1">{errors.fullName.message}</p>}
                 </div>
 
-                {(!editingCourier || (editingCourier && isRegularAdmin)) && ( // Show password field for new user OR if Regular Admin is editing (they won't edit password, but schema needs it)
-                                                                            // Master Admin does not see password field when editing.
+                {(!editingCourier || (editingCourier && isRegularAdmin)) && ( 
                   <div>
                     <Label htmlFor="password">
                         {!editingCourier ? "Password Awal" : (isRegularAdmin ? "Password (Tidak Diubah)" : "Password Awal")}
@@ -450,7 +448,7 @@ export default function AdminCouriersPage() {
                         {...register('password')}
                         placeholder={!editingCourier ? "Minimal 6 karakter" : (isRegularAdmin ? "Tidak diubah oleh Admin Reguler" : "")}
                         className="pr-10"
-                        disabled={!!editingCourier && isRegularAdmin} // Disable if regular admin is editing
+                        disabled={!!editingCourier && isRegularAdmin} 
                       />
                       <Button
                         type="button"
@@ -585,3 +583,4 @@ export default function AdminCouriersPage() {
     </div>
   );
 }
+
