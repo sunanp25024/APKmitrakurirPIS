@@ -5,10 +5,10 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings, Loader2 } from 'lucide-react'; 
+import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings, Loader2, CheckSquare, Send } from 'lucide-react'; 
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext'; // Import useAuth
+import { useAuth } from '@/contexts/AuthContext'; 
 
 interface NavItem {
   href: string;
@@ -24,23 +24,23 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { adminSession, isLoading: authLoading } = useAuth(); // Get adminSession from useAuth
+  const { adminSession, isLoading: authLoading } = useAuth(); 
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
     if (!authLoading && !adminSession) {
-      // Redirect to login if not loading and no admin session (unless already on login)
-      // This check might be redundant if pages themselves protect routes, but good for layout
-      if (pathname !== '/login') { // Prevent redirect loop if already on login
-        // router.push('/login'); // Consider if this is needed or if pages handle it
+      if (pathname !== '/login') { 
+        // router.push('/login'); // Handled by page guards now
       }
     }
   }, [adminSession, authLoading, router, pathname]);
   
   const allNavItems: NavItem[] = [
     { href: '/admin/reports', label: 'Laporan & Dashboard', icon: BarChart3, allowedRoles: ['master', 'regular', 'pic'] },
-    { href: '/admin/couriers', label: 'Manajemen Kurir', icon: Users, allowedRoles: ['master', 'regular', 'pic'] },
+    { href: '/admin/couriers', label: 'Manajemen Kurir & PIC', icon: Users, allowedRoles: ['master', 'regular', 'pic'] },
+    { href: '/admin/approvals', label: 'Persetujuan', icon: CheckSquare, allowedRoles: ['master'] },
+    { href: '/admin/my-requests', label: 'Permintaan Saya', icon: Send, allowedRoles: ['regular'] },
     { href: '/admin/manage-admins', label: 'Manajemen Admin', icon: Settings, allowedRoles: ['master'] },
   ];
 
@@ -59,9 +59,8 @@ export default function AdminLayout({
     );
   }
 
-  // If still no admin session after loading, perhaps show a message or redirect more forcefully
-  if (!adminSession) {
-     router.push('/login'); // Redirect if no session after loading
+  if (!adminSession && pathname !== '/login') { // Check pathname to avoid loop if already on login
+     router.push('/login'); 
      return (
         <div className="flex h-screen items-center justify-center bg-muted/40">
             <p>Sesi tidak ditemukan, mengarahkan ke halaman login...</p>
@@ -154,4 +153,3 @@ export default function AdminLayout({
     </div>
   );
 }
-

@@ -55,7 +55,7 @@ export interface DailyPerformanceData {
 
 // For Admin System
 export interface AdminSession {
-  id: string;
+  id: string; // Custom ID of admin (e.g., MASTERADMIN, ADMIN01)
   role: 'master' | 'regular' | 'pic';
   firebaseUid: string;
   email: string;
@@ -104,13 +104,16 @@ export type AppUserType = User;
 // For Approval Workflow
 export interface CourierUpdateRequest {
   id?: string; // Firestore document ID for this request
-  courierFirebaseUid: string; // UID of the courier document in 'users' collection to be updated
+  courierFirebaseUid: string; // UID of the courier/PIC document in 'users' collection to be updated
+  courierId: string; // Custom ID of the courier/PIC being updated
+  courierFullName: string; // Full name of the courier/PIC being updated, for display in approval list
   requestedChanges: Partial<Omit<User, 'firebaseUid' | 'password' | 'id'>>; // Fields to be updated
   requestorFirebaseUid: string; // UID of the admin making the request
   requestorId: string; // Custom ID of the admin (e.g., "ADMIN01")
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: number; // Timestamp of request
   reviewedByFirebaseUid?: string; // MasterAdmin UID who reviewed
+  reviewedById?: string; // MasterAdmin custom ID who reviewed
   reviewedAt?: number; // Timestamp of review
   rejectionReason?: string;
 }
@@ -118,12 +121,13 @@ export interface CourierUpdateRequest {
 export interface UserCreationRequest {
   id?: string; // Firestore document ID for this request
   // Data for the new user. `id` here is the custom courier/pic ID. Password is for Firebase Auth.
-  requestedUserData: Omit<User, 'firebaseUid' | 'avatarUrl'> & { password?: string; avatarUrl?: string };
+  requestedUserData: Omit<User, 'firebaseUid' | 'avatarUrl'> & { password?: string; avatarUrl?: string }; // fullName is inside requestedUserData
   requestorFirebaseUid: string;
-  requestorId: string;
+  requestorId: string; // Custom ID of the admin (e.g., "ADMIN01")
   status: 'pending' | 'approved' | 'rejected';
-  requestedAt: number;
-  reviewedByFirebaseUid?: string;
-  reviewedAt?: number;
+  requestedAt: number; // Timestamp of request
+  reviewedByFirebaseUid?: string; // MasterAdmin UID who reviewed
+  reviewedById?: string; // MasterAdmin custom ID who reviewed
+  reviewedAt?: number; // Timestamp of review
   rejectionReason?: string;
 }

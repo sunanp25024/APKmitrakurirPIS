@@ -90,8 +90,8 @@ export default function AdminCouriersPage() {
 
   const isMasterAdmin = adminSession?.role === 'master';
   const isRegularAdmin = adminSession?.role === 'regular';
-  const canManageDirectly = isMasterAdmin; // Hanya MasterAdmin yang bisa langsung memodifikasi
-  const canProposeChanges = isRegularAdmin; // Admin bisa mengajukan perubahan/penambahan
+  const canManageDirectly = isMasterAdmin; 
+  const canProposeChanges = isRegularAdmin; 
   const canViewOnly = adminSession?.role === 'pic';
 
   const fetchCouriers = useCallback(async () => {
@@ -107,15 +107,14 @@ export default function AdminCouriersPage() {
       const fetchedCouriers: User[] = [];
       querySnapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        // Pastikan data memiliki field 'id' (custom ID) dan 'jobTitle'
         if (data.id && data.jobTitle) {
              fetchedCouriers.push({
-                firebaseUid: docSnap.id,
+                firebaseUid: docSnap.id, // This is the Firestore document ID, which is the Firebase Auth UID
                 ...data,
               } as User);
         }
       });
-      setCouriers(fetchedCouriers.filter(c => c.jobTitle === 'Mitra Kurir' || c.jobTitle === 'PIC')); // Filter hanya Kurir & PIC
+      setCouriers(fetchedCouriers.filter(c => c.jobTitle === 'Mitra Kurir' || c.jobTitle === 'PIC'));
     } catch (error: any) {
       console.error("Gagal mengambil data kurir/PIC dari Firestore:", error);
       toast({ variant: "destructive", title: "Error", description: `Gagal mengambil data: ${error.message}` });
@@ -141,12 +140,12 @@ export default function AdminCouriersPage() {
     }
 
     if (editingCourier) { // Handle Edit
-      const { password, id, firebaseUid, ...changes } = data;
+      const { password, id: customId, firebaseUid, ...changes } = data; // id is customId from form
+      
       const requestedChanges: Partial<Omit<User, 'firebaseUid' | 'password' | 'id'>> = {};
-      // Bandingkan dengan data awal untuk menemukan perubahan
       Object.keys(changes).forEach(keyStr => {
         const key = keyStr as keyof typeof changes;
-        if (changes[key] !== editingCourier[key]) {
+        if (changes[key] !== editingCourier[key as keyof User]) { // Compare with original editingCourier data
           (requestedChanges as any)[key] = changes[key];
         }
       });
@@ -159,31 +158,33 @@ export default function AdminCouriersPage() {
         return;
       }
 
-      if (isMasterAdmin) { // MasterAdmin langsung update
+      if (isMasterAdmin) { 
         try {
           if (!editingCourier.firebaseUid) throw new Error("Firebase UID kurir tidak ditemukan untuk diedit.");
           const courierDocRef = doc(db, "users", editingCourier.firebaseUid);
           await updateDoc(courierDocRef, requestedChanges);
-          toast({ title: "Data Diperbarui", description: `Data untuk ${data.fullName} telah diperbarui oleh MasterAdmin.` });
+          toast({ title: "Data Diperbarui", description: `Data untuk ${editingCourier.fullName} telah diperbarui oleh MasterAdmin.` });
           fetchCouriers();
         } catch (error: any) {
           console.error("Error saat MasterAdmin memperbarui data:", error);
           toast({ variant: "destructive", title: "Update Gagal", description: error.message });
         }
-      } else if (isRegularAdmin) { // Admin mengirim permintaan approval
+      } else if (isRegularAdmin) { 
         try {
           if (!editingCourier.firebaseUid) throw new Error("Firebase UID kurir tidak ditemukan untuk permintaan update.");
           const updateRequest: CourierUpdateRequest = {
             courierFirebaseUid: editingCourier.firebaseUid,
+            courierId: editingCourier.id, // Custom ID of the courier
+            courierFullName: editingCourier.fullName, // Full name for display
             requestedChanges,
             requestorFirebaseUid: adminSession.firebaseUid,
-            requestorId: adminSession.id,
+            requestorId: adminSession.id, // Custom ID of the admin (e.g., "ADMIN01")
             status: 'pending',
             requestedAt: Date.now(),
           };
           const requestsCollectionRef = collection(db, "courierUpdateRequests");
           await addDoc(requestsCollectionRef, updateRequest);
-          toast({ title: "Permintaan Update Terkirim", description: `Permintaan update data ${data.fullName} menunggu persetujuan MasterAdmin.` });
+          toast({ title: "Permintaan Update Terkirim", description: `Permintaan update data ${editingCourier.fullName} menunggu persetujuan MasterAdmin.` });
         } catch (error: any) {
           console.error("Error saat mengirim permintaan update:", error);
           toast({ variant: "destructive", title: "Permintaan Update Gagal", description: error.message });
@@ -192,7 +193,7 @@ export default function AdminCouriersPage() {
     } else { // Handle Add New User (Kurir/PIC)
       if (!data.password || data.password.length < 6) {
         toast({ variant: "destructive", title: "Password Diperlukan", description: "Password minimal 6 karakter untuk pengguna baru."});
-        setValue('password', '');
+        setValue('password', ''); // Clear password if invalid during add
         return;
       }
       const existingUserWithCustomId = couriers.find(c => c.id === data.id);
@@ -200,17 +201,17 @@ export default function AdminCouriersPage() {
           toast({ variant: "destructive", title: "Error", description: `ID Kustom ${data.id} sudah digunakan.` });
           return;
       }
-      const { firebaseUid, ...userDataForRequest } = data; // Exclude firebaseUid for new user
+      const { firebaseUid, ...userDataForRequest } = data; 
 
-      if (isMasterAdmin) { // MasterAdmin langsung buat pengguna
+      if (isMasterAdmin) { 
         const userEmail = `${data.id}@spxkurir.app`;
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, userEmail, data.password!);
           const newFirebaseUid = userCredential.user.uid;
-          const { password, ...courierDataForFirestore } = userDataForRequest; // Jangan simpan password di Firestore
-          const finalUserData = {
+          const { password, ...courierDataForFirestore } = userDataForRequest; 
+          const finalUserData: Omit<User, 'firebaseUid'> & { firebaseUid: string } = {
             ...courierDataForFirestore,
-            firebaseUid: newFirebaseUid, // Ini akan menjadi ID dokumen di Firestore
+            firebaseUid: newFirebaseUid, 
             avatarUrl: data.avatarUrl || `https://placehold.co/100x100.png?text=${data.id.substring(0,2).toUpperCase()}`,
           };
           await setDoc(doc(db, "users", newFirebaseUid), finalUserData);
@@ -222,22 +223,23 @@ export default function AdminCouriersPage() {
           let userMessage = `Gagal menambahkan pengguna: ${error.message}`;
           if (error.code === 'auth/email-already-in-use') {
             userMessage = `Email ${userEmail} (berdasarkan ID ${data.id}) sudah terdaftar di Firebase. Gunakan ID Kustom lain.`;
+          } else if (error.code === 'auth/weak-password') {
+            userMessage = `Password terlalu lemah. Gunakan minimal 6 karakter.`;
           }
           toast({ variant: "destructive", title: "Penambahan Gagal", description: userMessage });
         }
-      } else if (isRegularAdmin) { // Admin mengirim permintaan approval
+      } else if (isRegularAdmin) { 
          try {
             const creationRequest: UserCreationRequest = {
-              requestedUserData: { ...userDataForRequest, password: data.password }, // Sertakan password untuk pembuatan Auth oleh MasterAdmin
+              requestedUserData: { ...userDataForRequest, password: data.password }, 
               requestorFirebaseUid: adminSession.firebaseUid,
-              requestorId: adminSession.id,
+              requestorId: adminSession.id, // Custom ID of the admin
               status: 'pending',
               requestedAt: Date.now(),
             };
             const requestsCollectionRef = collection(db, "userCreationRequests");
             await addDoc(requestsCollectionRef, creationRequest);
             toast({ title: "Permintaan Pengguna Baru Terkirim", description: `Penambahan ${data.fullName} (${data.id}) menunggu persetujuan MasterAdmin.` });
-            console.log(`MasterAdmin notification simulation: Admin ${adminSession.id} requested to add user ${data.id}`);
          } catch (error: any) {
             console.error("Error saat mengirim permintaan penambahan pengguna:", error);
             toast({ variant: "destructive", title: "Permintaan Gagal", description: error.message });
@@ -261,7 +263,7 @@ export default function AdminCouriersPage() {
       firebaseUid: courier.firebaseUid,
       id: courier.id,
       fullName: courier.fullName,
-      password: '', // Password tidak diisi ulang atau diubah dari sini untuk edit oleh Admin/MasterAdmin
+      password: '', 
       wilayah: courier.wilayah,
       area: courier.area,
       workLocation: courier.workLocation,
@@ -278,7 +280,7 @@ export default function AdminCouriersPage() {
   };
 
   const handleDelete = async (courier: User) => {
-    if (!isMasterAdmin) { // Hanya MasterAdmin yang bisa hapus
+    if (!isMasterAdmin) { 
       toast({ variant: "destructive", title: "Akses Ditolak", description: "Hanya MasterAdmin yang dapat menghapus data pengguna." });
       return;
     }
@@ -288,6 +290,7 @@ export default function AdminCouriersPage() {
     }
     if (window.confirm(`MasterAdmin: Apakah Anda yakin ingin menghapus data ${courier.fullName} (${courier.id}) dari Firestore? Ini TIDAK akan menghapus akun login Firebase-nya.`)) {
       try {
+        if (!courier.firebaseUid) throw new Error("Firebase UID pengguna tidak ditemukan untuk dihapus.");
         await deleteDoc(doc(db, "users", courier.firebaseUid));
         toast({ title: "Data Pengguna Dihapus", description: `Data ${courier.fullName} telah dihapus dari Firestore. Akun Firebase Authentication TIDAK terhapus.` });
         fetchCouriers();
@@ -313,11 +316,10 @@ export default function AdminCouriersPage() {
         accountNumber: '', bankName: '', registeredRecipientName: '', avatarUrl: '', firebaseUid: undefined,
     });
     setEditingCourier(null);
-    setShowPassword(true);
+    setShowPassword(true); // Show password for new user
     setIsFormOpen(true);
   };
 
-  const viewOnly = adminSession?.role === 'pic';
 
   if (!isMounted) {
     return <div className="flex justify-center items-center h-screen"><p>Menyiapkan halaman...</p></div>;
@@ -331,12 +333,12 @@ export default function AdminCouriersPage() {
             <CardTitle>Manajemen Data Kurir & PIC</CardTitle>
             <CardDescription>
               {isMasterAdmin && "Tambah, edit, atau hapus data kurir/PIC. Penambahan akan membuat akun Firebase."}
-              {isRegularAdmin && "Tambah pengguna baru atau ajukan perubahan data untuk persetujuan MasterAdmin."}
+              {isRegularAdmin && "Ajukan penambahan pengguna baru atau perubahan data untuk persetujuan MasterAdmin."}
               {viewOnly && "Lihat data kurir dan PIC. Hubungi Admin untuk perubahan."}
             </CardDescription>
           </div>
           {(isMasterAdmin || isRegularAdmin) && (
-            <Button onClick={openAddForm} size="sm">
+            <Button onClick={openAddForm} size="sm" disabled={viewOnly}>
               <UserPlus className="mr-2 h-4 w-4" /> {isMasterAdmin ? 'Tambah Pengguna' : 'Ajukan Pengguna Baru'}
             </Button>
           )}
@@ -344,11 +346,10 @@ export default function AdminCouriersPage() {
         <CardContent>
           <Alert variant="default" className="mb-4 bg-blue-50 border-blue-200">
             <Info className="h-4 w-4 text-blue-600" />
-            <AlertTitle className="text-blue-700">Informasi Penyimpanan & Alur Kerja</AlertTitle>
+            <AlertTitle className="text-blue-700">Informasi Alur Kerja</AlertTitle>
             <AlertDescription className="text-blue-600 space-y-1">
-              <p>Data pengguna (Kurir/PIC) disimpan di Cloud Firestore.</p>
-              {isMasterAdmin && <p>MasterAdmin: Penambahan pengguna baru akan langsung membuat akun di Firebase Authentication. Edit data juga langsung tersimpan.</p>}
-              {isRegularAdmin && <p>Admin: Penambahan pengguna baru atau pengubahan data akan dikirim sebagai permintaan persetujuan kepada MasterAdmin.</p>}
+              {isMasterAdmin && <p>MasterAdmin: Penambahan & perubahan data langsung diterapkan.</p>}
+              {isRegularAdmin && <p>Admin: Penambahan pengguna baru atau pengubahan data akan dikirim sebagai permintaan persetujuan kepada MasterAdmin. Cek status di menu "Permintaan Saya".</p>}
               {viewOnly && <p>PIC: Anda memiliki akses lihat saja untuk data pengguna.</p>}
             </AlertDescription>
           </Alert>
@@ -385,8 +386,8 @@ export default function AdminCouriersPage() {
                       <TableCell><Badge variant={courier.contractStatus === 'Aktif' ? "default" : "destructive"}>{courier.contractStatus}</Badge></TableCell>
                       {(!viewOnly) && (
                         <TableCell className="text-right space-x-2">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(courier)}>
-                            <Edit className="mr-1 h-3 w-3" /> {isMasterAdmin ? 'Edit' : 'Ajukan Edit'}
+                          <Button variant="outline" size="sm" onClick={() => handleEdit(courier)} disabled={viewOnly}>
+                            <Edit className="mr-1 h-3 w-3" /> {isMasterAdmin ? 'Edit Langsung' : 'Ajukan Edit'}
                           </Button>
                           {isMasterAdmin && (
                             <Button variant="destructive" size="sm" onClick={() => handleDelete(courier)}>
@@ -436,16 +437,20 @@ export default function AdminCouriersPage() {
                   {errors.fullName && <p className="text-sm text-destructive mt-1">{errors.fullName.message}</p>}
                 </div>
 
-                {(!editingCourier) && (
+                {(!editingCourier || (editingCourier && isRegularAdmin)) && ( // Show password field for new user OR if Regular Admin is editing (they won't edit password, but schema needs it)
+                                                                            // Master Admin does not see password field when editing.
                   <div>
-                    <Label htmlFor="password">Password Awal</Label>
+                    <Label htmlFor="password">
+                        {!editingCourier ? "Password Awal" : (isRegularAdmin ? "Password (Tidak Diubah)" : "Password Awal")}
+                    </Label>
                     <div className="relative">
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
                         {...register('password')}
-                        placeholder={"Minimal 6 karakter"}
+                        placeholder={!editingCourier ? "Minimal 6 karakter" : (isRegularAdmin ? "Tidak diubah oleh Admin Reguler" : "")}
                         className="pr-10"
+                        disabled={!!editingCourier && isRegularAdmin} // Disable if regular admin is editing
                       />
                       <Button
                         type="button"
@@ -455,13 +460,14 @@ export default function AdminCouriersPage() {
                         onClick={() => setShowPassword((prev) => !prev)}
                         aria-label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
                         tabIndex={-1}
+                        disabled={!!editingCourier && isRegularAdmin}
                       >
                         {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                     {errors.password && <p className="text-sm text-destructive mt-1">{errors.password.message}</p>}
-                    {isMasterAdmin && <p className="text-xs text-muted-foreground mt-1">Password ini akan digunakan untuk login awal pengguna.</p>}
-                    {isRegularAdmin && <p className="text-xs text-muted-foreground mt-1">MasterAdmin akan membuat akun dengan password ini jika disetujui.</p>}
+                    {!editingCourier && isMasterAdmin && <p className="text-xs text-muted-foreground mt-1">Password ini akan digunakan untuk login awal pengguna.</p>}
+                    {!editingCourier && isRegularAdmin && <p className="text-xs text-muted-foreground mt-1">MasterAdmin akan membuat akun dengan password ini jika disetujui.</p>}
                   </div>
                 )}
                 {editingCourier && isMasterAdmin && (
@@ -470,15 +476,6 @@ export default function AdminCouriersPage() {
                       <AlertTitle className="text-yellow-700">Info Password</AlertTitle>
                       <AlertDescription className="text-yellow-600">
                         Password akun login Firebase tidak diubah dari form ini. MasterAdmin dapat meresetnya via Firebase Console jika diperlukan.
-                      </AlertDescription>
-                  </Alert>
-                )}
-                 {editingCourier && isRegularAdmin && (
-                  <Alert variant="default" className="md:col-span-2 bg-yellow-50 border-yellow-200">
-                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                      <AlertTitle className="text-yellow-700">Info Password</AlertTitle>
-                      <AlertDescription className="text-yellow-600">
-                        Perubahan password tidak termasuk dalam permintaan update ini. Hubungi MasterAdmin jika perlu reset password.
                       </AlertDescription>
                   </Alert>
                 )}
