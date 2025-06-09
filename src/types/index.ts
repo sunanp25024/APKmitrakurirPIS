@@ -1,6 +1,7 @@
 
 export interface User {
-  id: string; // ID Mitra Kurir
+  firebaseUid: string; // UID dari Firebase Auth, digunakan sebagai ID dokumen di Firestore
+  id: string; // ID Mitra Kurir kustom yang bisa dibaca manusia (misal PISTEST2025)
   fullName: string; // Nama Lengkap Mitra Kurir
   wilayah: string; // Wilayah Operasional
   area: string; // Area Operasional di dalam Wilayah
@@ -12,7 +13,7 @@ export interface User {
   bankName: string; // Jenis Bank
   registeredRecipientName: string; // Nama Penerima (di rekening)
   avatarUrl?: string; // URL for profile photo
-  password?: string; // For mock data simulation only
+  password?: string; // Hanya untuk input form, tidak disimpan di Firestore
 }
 
 export type PackageStatus =
@@ -62,7 +63,7 @@ export interface AdminOverallStats {
 }
 
 export interface AdminCourierDailySummary {
-  courierId: string;
+  courierId: string; // Ini adalah ID Kustom
   courierName: string;
   wilayah: string;
   area: string;
@@ -79,4 +80,3 @@ export interface AdminDeliveryTimeDataPoint {
   hour: string; // e.g., "09:00", "10:00"
   delivered: number;
 }
-
