@@ -1,22 +1,22 @@
 
     "use client";
 
-    import type { User as AppUserType, AdminSession, AuthLoginResponse } from '@/types'; 
+    import type { User as AppUserType, AdminSession, AuthLoginResponse } from '@/types';
     import { useRouter } from 'next/navigation';
     import React, { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
-    import { 
-      User as FirebaseUser, 
-      signInWithEmailAndPassword, 
-      signOut, 
+    import {
+      User as FirebaseUser,
+      signInWithEmailAndPassword,
+      signOut,
       onAuthStateChanged,
       // createUserWithEmailAndPassword // Keep for potential future use by admin
     } from 'firebase/auth';
     import { doc, getDoc, setDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
-    import { auth, db } from '@/lib/firebase'; 
+    import { auth, db } from '@/lib/firebase';
 
     interface AuthContextType {
-      user: AppUserType | null; 
-      firebaseUser: FirebaseUser | null; 
+      user: AppUserType | null;
+      firebaseUser: FirebaseUser | null;
       adminSession: AdminSession | null;
       login: (idOrEmail: string, pass: string) => Promise<AuthLoginResponse>;
       logout: () => Promise<void>;
@@ -25,14 +25,17 @@
 
     const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-    const ADMIN_SESSION_KEY = 'adminSession_firebase_v2'; 
+    const ADMIN_SESSION_KEY = 'adminSession_firebase_v2';
 
     // These emails and passwords MUST exist in your Firebase Authentication console
-    const ADMIN_FIRESTORE_CREDENTIALS = [
+    // Role 'regular' is for general Admins. Role 'pic' is for PICs.
+    export const ADMIN_FIRESTORE_CREDENTIALS = [
       { id: "MASTERADMIN", password: "masterpassword", role: "master" as const, email: "masteradmin@spxkurir.app"},
       { id: "ADMIN01", password: "admin123", role: "regular" as const, email: "admin01@spxkurir.app"},
-      { id: "SUPERVISOR01", password: "super123", role: "regular" as const, email: "supervisor01@spxkurir.app"},
-      { id: "PICAREA01", password: "pic123", role: "pic" as const, email: "picarea01@spxkurir.app"}, // Example PIC
+      { id: "SUPERVISOR01", password: "super123", role: "regular" as const, email: "supervisor01@spxkurir.app"}, // Can act as another Admin
+      { id: "PICAREA01", password: "pic123", role: "pic" as const, email: "picarea01@spxkurir.app"},
+      { id: "ADMIN02JBR", password: "adminjbr", role: "regular" as const, email: "admin02.jbr@spxkurir.app"}, // Another Admin
+      { id: "PICSEKTORB", password: "picsektorb", role: "pic" as const, email: "pic.sektorb@spxkurir.app"}, // Another PIC
     ];
 
     export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -57,23 +60,23 @@
                 const sessionData: AdminSession = JSON.parse(storedAdminSession);
                 if (sessionData.firebaseUid === fbUser.uid) {
                     setAdminSession(sessionData);
-                    setUser(null); 
+                    setUser(null);
                     setIsLoading(false);
-                    return; 
+                    return;
                 } else {
                   localStorage.removeItem(ADMIN_SESSION_KEY);
                   setAdminSession(null);
                 }
             }
 
-            const userDocRef = doc(db, "users", fbUser.uid); 
+            const userDocRef = doc(db, "users", fbUser.uid);
             try {
               const userDocSnap = await getDoc(userDocRef);
               if (userDocSnap.exists()) {
                 const appUserDataFromDb = userDocSnap.data();
                 const appUserData: AppUserType = {
-                    firebaseUid: fbUser.uid, 
-                    id: appUserDataFromDb.id, 
+                    firebaseUid: fbUser.uid,
+                    id: appUserDataFromDb.id,
                     fullName: appUserDataFromDb.fullName,
                     wilayah: appUserDataFromDb.wilayah,
                     area: appUserDataFromDb.area,
@@ -89,7 +92,7 @@
 
                 if (appUserData.contractStatus !== 'Aktif') {
                   console.log(`User ${appUserData.id} contract is not active. Logging out.`);
-                  await signOut(auth); 
+                  await signOut(auth);
                   setUser(null);
                   setFirebaseUser(null);
                 } else {
@@ -97,19 +100,19 @@
                 }
               } else {
                 console.warn("User document not found in Firestore for UID:", fbUser.uid, "This might be an admin user or a new user without a Firestore doc. Logging out if not an admin.");
-                if (!adminSession && !localStorage.getItem(ADMIN_SESSION_KEY)) { 
-                    await signOut(auth); 
+                if (!adminSession && !localStorage.getItem(ADMIN_SESSION_KEY)) {
+                    await signOut(auth);
                     setUser(null);
-                    setFirebaseUser(null); 
+                    setFirebaseUser(null);
                 }
               }
             } catch (error) {
               console.error("Error fetching user document from Firestore:", error);
-              await signOut(auth); 
+              await signOut(auth);
               setUser(null);
               setFirebaseUser(null);
             }
-          } else { 
+          } else {
             setUser(null);
             setFirebaseUser(null);
             setAdminSession(null);
@@ -119,7 +122,7 @@
         });
         return () => unsubscribe();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, []); 
+      }, []);
 
 
       const login = async (idOrEmailFromInput: string, pass: string): Promise<AuthLoginResponse> => {
@@ -130,7 +133,7 @@
           setIsLoading(false);
           return { success: false, message: "Layanan autentikasi tidak siap. Coba lagi nanti." };
         }
-        
+
         let foundAdminConfig = ADMIN_FIRESTORE_CREDENTIALS.find(
           (admin) => admin.email.toLowerCase() === idOrEmailFromInput.toLowerCase()
         );
@@ -140,21 +143,21 @@
                 (admin) => admin.id.toUpperCase() === idOrEmailFromInput.toUpperCase()
             );
         }
-        
+
         if (foundAdminConfig) {
-          const adminEmailForFirebase = foundAdminConfig.email; 
+          const adminEmailForFirebase = foundAdminConfig.email;
           try {
             const adminFirebaseUserCredential = await signInWithEmailAndPassword(auth, adminEmailForFirebase, pass);
-            const adminData: AdminSession = { 
-              id: foundAdminConfig.id, 
-              role: foundAdminConfig.role, 
+            const adminData: AdminSession = {
+              id: foundAdminConfig.id,
+              role: foundAdminConfig.role,
               firebaseUid: adminFirebaseUserCredential.user.uid,
-              email: foundAdminConfig.email 
+              email: foundAdminConfig.email
             };
-            setAdminSession(adminData); 
-            localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminData)); 
-            setUser(null); 
-            setFirebaseUser(adminFirebaseUserCredential.user); 
+            setAdminSession(adminData);
+            localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminData));
+            setUser(null);
+            setFirebaseUser(adminFirebaseUserCredential.user);
             setIsLoading(false);
             return { success: true, isAdmin: true, role: foundAdminConfig.role };
           } catch (error: any) {
@@ -169,13 +172,13 @@
             return { success: false, message };
           }
         }
-        
+
         // Courier login logic
         let finalCourierEmail: string;
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        const courierIdRegex = /^[a-zA-Z0-9_.-]+$/; 
+        const courierIdRegex = /^[a-zA-Z0-9_.-]+$/;
 
-        if (idOrEmailFromInput.includes('@')) { 
+        if (idOrEmailFromInput.includes('@')) {
             if (!emailRegex.test(idOrEmailFromInput)) {
                 setIsLoading(false);
                 return { success: false, message: "Format email yang Anda masukkan tidak valid." };
@@ -187,20 +190,21 @@
                  return { success: false, message: "Format ID Pengguna (bagian sebelum '@') dalam email tidak valid. Hanya huruf, angka, _, ., - yang diizinkan dan tanpa spasi." };
             }
 
-        } else { 
+        } else {
             if (!courierIdRegex.test(idOrEmailFromInput)) {
                 setIsLoading(false);
                 return { success: false, message: "Format ID Pengguna tidak valid. Hanya huruf, angka, _, ., - yang diizinkan dan tanpa spasi." };
             }
             finalCourierEmail = `${idOrEmailFromInput}@spxkurir.app`;
         }
-        
+
         try {
           const userCredential = await signInWithEmailAndPassword(auth, finalCourierEmail, pass);
-          setAdminSession(null); 
+          setAdminSession(null);
           localStorage.removeItem(ADMIN_SESSION_KEY);
           setIsLoading(false);
-          return { success: true, isAdmin: false }; 
+          // onAuthStateChanged akan menangani pemuatan data pengguna kurir
+          return { success: true, isAdmin: false };
         } catch (error: any) {
           setIsLoading(false);
           console.error("Courier login error:", error, "Attempted email:", finalCourierEmail);
@@ -228,17 +232,17 @@
           setIsLoading(false);
           return;
         }
-        const currentPath = window.location.pathname; 
+        const currentPath = window.location.pathname;
         await signOut(auth);
-        
+
         if (currentPath?.startsWith('/admin')) {
-            router.push('/login'); 
+            router.push('/login');
         } else {
-            router.push('/login'); 
+            router.push('/login');
         }
         setIsLoading(false);
       };
-      
+
       return (
         <AuthContext.Provider value={{ user, firebaseUser, adminSession, login, logout, isLoading }}>
           {children}
@@ -253,4 +257,3 @@
       }
       return context;
     };
-
