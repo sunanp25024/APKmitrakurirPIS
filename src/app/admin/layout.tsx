@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings, Loader2, CheckSquare, Send } from 'lucide-react'; 
+import { PanelLeft, Home, Users, Briefcase, BarChart3, Settings, Loader2, CheckSquare, Send, UserCheck, UserCog } from 'lucide-react'; 
 import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext'; 
@@ -29,19 +29,23 @@ export default function AdminLayout({
 
   useEffect(() => {
     setIsMounted(true);
-    if (!authLoading && !adminSession) {
-      if (pathname !== '/login') { 
-        // router.push('/login'); // Handled by page guards now
-      }
+  }, []);
+  
+  useEffect(() => {
+    if (!isMounted || authLoading) return;
+
+    if (!adminSession && pathname !== '/login') { 
+      router.push('/login');
     }
-  }, [adminSession, authLoading, router, pathname]);
+  }, [adminSession, authLoading, router, pathname, isMounted]);
   
   const allNavItems: NavItem[] = [
     { href: '/admin/reports', label: 'Laporan & Dashboard', icon: BarChart3, allowedRoles: ['master', 'regular', 'pic'] },
-    { href: '/admin/couriers', label: 'Manajemen Kurir & PIC', icon: Users, allowedRoles: ['master', 'regular', 'pic'] },
+    { href: '/admin/couriers', label: 'Manajemen Kurir', icon: Users, allowedRoles: ['master', 'regular', 'pic'] }, // PIC can view couriers
+    { href: '/admin/pics', label: 'Manajemen PIC', icon: UserCheck, allowedRoles: ['master', 'regular'] }, // Only Master and Regular Admin can manage PICs
     { href: '/admin/approvals', label: 'Persetujuan', icon: CheckSquare, allowedRoles: ['master'] },
     { href: '/admin/my-requests', label: 'Permintaan Saya', icon: Send, allowedRoles: ['regular'] },
-    { href: '/admin/manage-admins', label: 'Manajemen Admin', icon: Settings, allowedRoles: ['master'] },
+    { href: '/admin/manage-admins', label: 'Manajemen Admin', icon: UserCog, allowedRoles: ['master'] },
   ];
 
   const getFilteredNavItems = () => {
@@ -59,8 +63,7 @@ export default function AdminLayout({
     );
   }
 
-  if (!adminSession && pathname !== '/login') { // Check pathname to avoid loop if already on login
-     router.push('/login'); 
+  if (!adminSession && pathname !== '/login') { 
      return (
         <div className="flex h-screen items-center justify-center bg-muted/40">
             <p>Sesi tidak ditemukan, mengarahkan ke halaman login...</p>
