@@ -6,18 +6,24 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 
 export default function HomePage() {
-  const { user, isLoading } = useAuth();
+  const { user, adminSession, isLoading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // console.log("HomePage: isLoading:", isLoading, "user:", !!user, "adminSession:", !!adminSession);
     if (!isLoading) {
-      if (user) {
+      if (adminSession) {
+        // console.log("HomePage: Admin session found. Redirecting to /admin/reports.");
+        router.replace('/admin/reports');
+      } else if (user) {
+        // console.log("HomePage: User session found. Redirecting to /dashboard.");
         router.replace('/dashboard');
       } else {
+        // console.log("HomePage: No session found. Redirecting to /login.");
         router.replace('/login');
       }
     }
-  }, [user, isLoading, router]);
+  }, [user, adminSession, isLoading, router]);
 
   return (
     <div className="flex h-screen items-center justify-center bg-background">
