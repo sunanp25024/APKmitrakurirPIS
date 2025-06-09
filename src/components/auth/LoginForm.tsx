@@ -21,15 +21,16 @@ const loginSchema = z.object({
 
 type LoginFormInputs = z.infer<typeof loginSchema>;
 
-const ADMIN_CREDENTIALS = [
-  { id: "MASTERADMIN", password: "masterpassword", role: "master" },
-  { id: "ADMIN01", password: "admin123", role: "regular" },
-  { id: "SUPERVISOR01", password: "super123", role: "regular" },
-];
+// This local ADMIN_CREDENTIALS check is removed as AuthContext will handle it.
+// const ADMIN_CREDENTIALS = [
+//   { id: "MASTERADMIN", password: "masterpassword", role: "master" },
+//   { id: "ADMIN01", password: "admin123", role: "regular" },
+//   { id: "SUPERVISOR01", password: "super123", role: "regular" },
+// ];
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login } = useAuth(); // login from AuthContext will now handle both admin and courier
   const router = useRouter();
   const { toast } = useToast();
 
@@ -40,27 +41,19 @@ export function LoginForm() {
   const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
     setIsLoading(true);
 
-    const foundAdmin = ADMIN_CREDENTIALS.find(
-      (admin) => admin.id.toUpperCase() === data.id.toUpperCase() && admin.password === data.password
-    );
-
-    if (foundAdmin) {
-      toast({ title: `Login Admin (${foundAdmin.role}) Berhasil`, description: "Mengarahkan ke Panel Admin." });
-      try {
-        localStorage.setItem('adminSession', JSON.stringify({ id: foundAdmin.id, role: foundAdmin.role }));
-      } catch (e) {
-        console.error("Failed to set admin session in localStorage", e);
-      }
-      router.push('/admin/reports'); 
-      setIsLoading(false);
-      return;
-    }
-
+    // Always call the login function from AuthContext.
+    // It will determine if it's an admin or courier login attempt.
     const loginResult = await login(data.id, data.password);
     setIsLoading(false);
+
     if (loginResult.success) {
-      toast({ title: "Login Kurir Berhasil", description: "Selamat datang kembali!" });
-      router.push('/dashboard');
+      if (loginResult.isAdmin) { // AuthContext login will return isAdmin flag
+        toast({ title: `Login Admin (${loginResult.role}) Berhasil`, description: "Mengarahkan ke Panel Admin." });
+        router.push('/admin/reports');
+      } else {
+        toast({ title: "Login Kurir Berhasil", description: "Selamat datang kembali!" });
+        router.push('/dashboard');
+      }
     } else {
       toast({ 
         variant: "destructive", 
@@ -79,11 +72,11 @@ export function LoginForm() {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="id">ID Pengguna</Label>
+            <Label htmlFor="id">ID Pengguna atau Email Admin</Label>
             <Input 
               id="id" 
               type="text"
-              placeholder="Masukkan ID Anda" 
+              placeholder="Masukkan ID/Email Anda" 
               {...register('id')} 
               className={errors.id ? 'border-destructive' : ''}
             />
@@ -108,4 +101,3 @@ export function LoginForm() {
     </Card>
   );
 }
-
