@@ -9,9 +9,8 @@
       signInWithEmailAndPassword,
       signOut,
       onAuthStateChanged,
-      // createUserWithEmailAndPassword // Keep for potential future use by admin
     } from 'firebase/auth';
-    import { doc, getDoc, setDoc, collection, getDocs, query, where, writeBatch } from 'firebase/firestore';
+    import { doc, getDoc } from 'firebase/firestore';
     import { auth, db } from '@/lib/firebase';
 
     interface AuthContextTypeInternal extends ExtendedAuthContextType {
@@ -44,7 +43,6 @@
       const [isLoading, setIsLoading] = useState(true);
       const router = useRouter();
       const adminActionInProgress = useRef(false);
-      // State to specifically track if we are in the process of restoring admin session after creating a new user
       const [isRestoringAdminSessionAfterUserCreation, setIsRestoringAdminSessionAfterUserCreation] = useState(false);
 
 
@@ -54,53 +52,46 @@
 
       useEffect(() => {
         if (!auth || !db) {
-          console.error("Firebase auth or db not initialized. AuthProvider cannot function.");
+          console.error("AuthCTX: Firebase auth or db not initialized. AuthProvider cannot function.");
           setIsLoading(false);
           return;
         }
+        // console.log("AuthCTX: Subscribing to onAuthStateChanged. Initial isRestoringAdmin:", isRestoringAdminSessionAfterUserCreation);
 
         const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-          // console.log("Auth state changed. fbUser:", fbUser?.uid, "adminActionInProgress:", adminActionInProgress.current, "isRestoringAdmin:", isRestoringAdminSessionAfterUserCreation);
-          setIsLoading(true);
+          setIsLoading(true); // Set loading true at the very start of handling an auth state change.
+          // console.log("AuthCTX: onAuthStateChanged triggered. fbUser UID:", fbUser?.uid, "adminActionInProgress:", adminActionInProgress.current, "isRestoringAdmin:", isRestoringAdminSessionAfterUserCreation);
 
           const storedAdminSessionRaw = localStorage.getItem(ADMIN_SESSION_KEY);
           const storedAdminSession: AdminSession | null = storedAdminSessionRaw ? JSON.parse(storedAdminSessionRaw) : null;
 
           if (fbUser) {
-            // SCENARIO 1: Admin was logged in, created a new user, and this `fbUser` is the NEWLY CREATED user.
             if (adminActionInProgress.current && storedAdminSession && fbUser.uid !== storedAdminSession.firebaseUid) {
-              // console.log("Admin action: New user (UID:", fbUser.uid, ") detected. Admin session UID:", storedAdminSession.firebaseUid, ". Signing out new user.");
-              setIsRestoringAdminSessionAfterUserCreation(true); // Mark that we are in this special state
+              // Admin action: New user detected. Sign out this new user.
+              // The admin's session should ideally be restored by Firebase if their token is still valid.
+              // console.log("AuthCTX: Admin action - New user (UID:", fbUser.uid, ") detected. Admin session UID:", storedAdminSession.firebaseUid, ". Signing out new user.");
+              setIsRestoringAdminSessionAfterUserCreation(true);
               await signOut(auth);
-              // setIsLoading(false); // Let the next onAuthStateChanged (for null) handle loading state for this specific path
-              return; // Expect onAuthStateChanged to fire again with fbUser = null
+              // DO NOT set isLoading to false here. Let the subsequent onAuthStateChanged(null) or the potential admin re-auth handle it.
+              return; // Expect onAuthStateChanged to fire again with fbUser = null for the signed-out new user.
             }
 
-            // SCENARIO 2: Normal login or session restoration (either admin or courier).
-            // Or, this is the admin's session being re-asserted after the new user was signed out.
-            // console.log("Processing stable fbUser:", fbUser.uid);
+            // This block handles:
+            // 1. A stable login (admin or courier).
+            // 2. Firebase re-authenticating the original admin after the new user (created by admin) was signed out.
+            // console.log("AuthCTX: Processing stable fbUser:", fbUser.uid);
             setFirebaseUser(fbUser);
-            
-            // If an admin action was in progress, and we're now seeing a stable user,
-            // it's time to reset the flags if this user is the original admin.
-            if (adminActionInProgress.current && storedAdminSession && fbUser.uid === storedAdminSession.firebaseUid) {
-                // console.log("Admin session re-asserted for UID:", fbUser.uid);
-                adminActionInProgress.current = false;
-                setIsRestoringAdminSessionAfterUserCreation(false);
-            } else if (!storedAdminSession || fbUser.uid !== storedAdminSession.firebaseUid) {
-                // If it's a regular user or a different admin, ensure flags are reset.
-                adminActionInProgress.current = false;
-                setIsRestoringAdminSessionAfterUserCreation(false);
-            }
-
 
             if (storedAdminSession && storedAdminSession.firebaseUid === fbUser.uid) {
-              // console.log("Restoring admin session from localStorage for UID:", fbUser.uid);
+              // console.log("AuthCTX: Restoring admin session from localStorage for UID:", fbUser.uid);
               setAdminSession(storedAdminSession);
-              setUser(null); 
+              setUser(null);
+              // Reset flags as we've stabilized on an admin session
+              adminActionInProgress.current = false;
+              setIsRestoringAdminSessionAfterUserCreation(false);
             } else {
-              // console.log("Not an admin session from localStorage or different user. Attempting to load courier user data for UID:", fbUser.uid);
-              localStorage.removeItem(ADMIN_SESSION_KEY); 
+              // console.log("AuthCTX: Not an admin session from localStorage or different user. Attempting to load courier user data for UID:", fbUser.uid);
+              localStorage.removeItem(ADMIN_SESSION_KEY);
               setAdminSession(null);
               const userDocRef = doc(db, "users", fbUser.uid);
               try {
@@ -122,51 +113,57 @@
                       registeredRecipientName: appUserDataFromDb.registeredRecipientName,
                       avatarUrl: appUserDataFromDb.avatarUrl,
                   };
-                  if (appUserData.contractStatus !== 'Aktif') {
-                    // console.log(`User ${appUserData.id} contract is not active. Logging out.`);
-                    await signOut(auth); 
+                  if (appUserData.contractStatus !== 'Aktif' && appUserData.jobTitle !== 'Admin' && appUserData.jobTitle !== 'Master Admin' && appUserData.jobTitle !== 'PIC') { // Admins/PICs are always "active" in terms of login
+                    // console.log(`AuthCTX: User ${appUserData.id} contract is not active. Logging out.`);
+                    await signOut(auth); // This will trigger onAuthStateChanged(null)
+                    // Return here because a new onAuthStateChanged will be triggered.
+                    return;
                   } else {
                     setUser(appUserData);
                   }
                 } else {
-                  // console.warn("User document not found in Firestore for UID:", fbUser.uid, ". Signing out.");
-                  await signOut(auth); 
+                  // console.warn("AuthCTX: User document not found in Firestore for UID:", fbUser.uid, ". Signing out.");
+                  await signOut(auth); // This will trigger onAuthStateChanged(null)
+                  return;
                 }
               } catch (error) {
-                // console.error("Error fetching user document from Firestore:", error);
-                await signOut(auth); 
+                // console.error("AuthCTX: Error fetching user document from Firestore:", error);
+                await signOut(auth); // This will trigger onAuthStateChanged(null)
+                return;
               }
+              // Reset flags as we've stabilized on a courier session or failed to load one (leading to logout)
+              adminActionInProgress.current = false;
+              setIsRestoringAdminSessionAfterUserCreation(false);
             }
           } else { // fbUser is null
-            // console.log("fbUser is null. isRestoringAdmin:", isRestoringAdminSessionAfterUserCreation);
+            // console.log("AuthCTX: fbUser is null. isRestoringAdmin:", isRestoringAdminSessionAfterUserCreation);
             if (isRestoringAdminSessionAfterUserCreation) {
-              // This null state is expected after signing out the newly created user by admin.
+              // This null state is after signing out the newly created user by admin.
               // We are waiting for Firebase to potentially re-assert the admin's original session.
               // So, we don't clear the admin session from React state or localStorage yet.
-              // console.log("Null user after admin action, waiting for admin session re-assertion.");
-              // It's crucial to not set isLoading to false here if we expect another auth state change.
-              // However, if Firebase doesn't re-assert, we might get stuck in loading.
-              // Let's assume Firebase *will* re-assert the previous user or stay null if original was null.
-              // The flags will be reset when a non-null user comes in, or if it's a genuine logout.
+              // console.log("AuthCTX: Null user after admin action, admin session potentially preserved in state/localStorage. Waiting for possible admin re-auth.");
+              // The `isLoading` will be set to false at the end of this onAuthStateChanged call.
+              // If Firebase re-auths admin, next call will handle it. If not, pages will see isLoading=false and no fbUser.
             } else {
-              // This is a genuine logout or session expiry.
-              // console.log("Genuine null user state. Clearing admin session.");
+              // This is a genuine logout or session expiry, or failure to load user data.
+              // console.log("AuthCTX: Genuine null user state. Clearing user/admin session.");
               setUser(null);
               setFirebaseUser(null);
               setAdminSession(null);
               localStorage.removeItem(ADMIN_SESSION_KEY);
               adminActionInProgress.current = false; // Ensure flag is reset on any genuine logout
             }
-            // Resetting here as we have processed the null state. If an admin session is re-asserted,
-            // the flag will be reset again in the fbUser block.
+            // Always reset this flag after handling a null user state.
             setIsRestoringAdminSessionAfterUserCreation(false);
           }
-          setIsLoading(false);
+          setIsLoading(false); // Set loading to false at the very end of processing this auth state.
         });
-        return () => unsubscribe();
+        return () => {
+            // console.log("AuthCTX: Unsubscribing from onAuthStateChanged.");
+            unsubscribe();
+        }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, []); // Removed isRestoringAdminSessionAfterUserCreation from dep array to avoid potential loops, useEffect handles its reset internally.
-
+      }, []); // Removed isRestoringAdminSessionAfterUserCreation from dep array to simplify and rely on its internal reset
 
       const login = async (idOrEmailFromInput: string, pass: string): Promise<AuthLoginResponse> => {
         setIsLoading(true);
@@ -174,7 +171,7 @@
         setIsRestoringAdminSessionAfterUserCreation(false); 
 
         if (!auth || !db) {
-          // console.error("Firebase auth or db not initialized during login attempt.");
+          console.error("AuthCTX: Firebase auth or db not initialized during login attempt.");
           setIsLoading(false);
           return { success: false, message: "Layanan autentikasi tidak siap. Coba lagi nanti." };
         }
@@ -192,22 +189,14 @@
         if (foundAdminConfig) {
           const adminEmailForFirebase = foundAdminConfig.email;
           try {
+            // console.log("AuthCTX: Attempting admin sign-in with Firebase for email:", adminEmailForFirebase);
             const adminFirebaseUserCredential = await signInWithEmailAndPassword(auth, adminEmailForFirebase, pass);
-            const adminData: AdminSession = {
-              id: foundAdminConfig.id,
-              role: foundAdminConfig.role,
-              firebaseUid: adminFirebaseUserCredential.user.uid,
-              email: foundAdminConfig.email
-            };
-            setAdminSession(adminData);
-            localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(adminData));
-            setUser(null);
-            setFirebaseUser(adminFirebaseUserCredential.user);
-            // setIsLoading(false); // onAuthStateChanged will set it
+            // `onAuthStateChanged` will handle setting adminSession and isLoading
+            // console.log("AuthCTX: Admin Firebase sign-in successful for:", adminFirebaseUserCredential.user.uid);
             return { success: true, isAdmin: true, role: foundAdminConfig.role };
           } catch (error: any) {
+            // console.error("AuthCTX: Admin Firebase login error:", error);
             setIsLoading(false);
-            // console.error("Admin Firebase login error:", error);
             let message = "Login Admin gagal. Periksa ID/Email dan Password.";
             if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
                 message = "Kredensial Admin (email/password di Firebase) salah atau tidak ditemukan.";
@@ -233,7 +222,6 @@
                  setIsLoading(false);
                  return { success: false, message: "Format ID Pengguna (bagian sebelum '@') dalam email tidak valid. Hanya huruf, angka, _, ., - yang diizinkan dan tanpa spasi." };
             }
-
         } else {
             if (!courierIdRegex.test(idOrEmailFromInput)) {
                 setIsLoading(false);
@@ -243,14 +231,14 @@
         }
 
         try {
+          // console.log("AuthCTX: Attempting courier sign-in with Firebase for email:", finalCourierEmail);
           await signInWithEmailAndPassword(auth, finalCourierEmail, pass);
-          setAdminSession(null); 
-          localStorage.removeItem(ADMIN_SESSION_KEY);
-          // setIsLoading(false); // onAuthStateChanged will set it
+          // `onAuthStateChanged` will handle setting user and isLoading
+          // console.log("AuthCTX: Courier Firebase sign-in successful (pending onAuthStateChanged).");
           return { success: true, isAdmin: false };
         } catch (error: any) {
+          // console.error("AuthCTX: Courier login error:", error, "Attempted email:", finalCourierEmail);
           setIsLoading(false);
-          // console.error("Courier login error:", error, "Attempted email:", finalCourierEmail);
           let message = "Login gagal. Periksa ID dan Password Anda.";
           if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
             message = "ID atau Password kurir salah, atau akun belum terdaftar.";
@@ -268,21 +256,19 @@
         adminActionInProgress.current = false; 
         setIsRestoringAdminSessionAfterUserCreation(false); 
         if (!auth) {
-          // console.error("Firebase auth not initialized during logout attempt.");
+          console.error("AuthCTX: Firebase auth not initialized during logout attempt.");
           localStorage.removeItem(ADMIN_SESSION_KEY);
           setUser(null);
           setFirebaseUser(null);
           setAdminSession(null);
+          setIsLoading(false); // Set loading false before push
           router.push('/login');
-          setIsLoading(false);
           return;
         }
-        // const currentPath = window.location.pathname; // No longer needed for redirect logic here
+        // console.log("AuthCTX: Logging out user.");
         await signOut(auth);
-        // onAuthStateChanged(null) will clear session data unless isRestoringAdminSessionAfterUserCreation was true
-        // and not reset, which should not be the case for a manual logout.
-        router.push('/login'); // Always redirect to login on logout.
-        // setIsLoading(false); // onAuthStateChanged will set it
+        // `onAuthStateChanged` will be triggered with null, which will then clear session data and set isLoading to false.
+        router.push('/login'); 
       };
       
       const contextValue: AuthContextTypeInternal = {
@@ -310,12 +296,11 @@
         throw new Error('useAuth must be used within an AuthProvider');
       }
       const { 
-        isRestoringAdminSessionAfterUserCreation: _isRestoring, // Exclude internal state from public type
-        setIsRestoringAdminSessionAfterUserCreation: _setIsRestoring, // Exclude internal setter
+        isRestoringAdminSessionAfterUserCreation: _isRestoring, 
+        setIsRestoringAdminSessionAfterUserCreation: _setIsRestoring, 
         ...publicContext 
       } = context;
       return publicContext;
     };
-
     
     
